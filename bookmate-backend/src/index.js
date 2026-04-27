@@ -47,4 +47,8 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: 'Внутренняя ошибка сервера' });
 });
 
-app.listen(PORT, () => console.log(`BookMate API v2 running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`BookMate API v2 running on port ${PORT}`);
+  const { startReminderScheduler } = require('./utils/reminderScheduler');
+  startReminderScheduler();
+});
