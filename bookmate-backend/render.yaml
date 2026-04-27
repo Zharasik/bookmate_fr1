@@ -2,12 +2,29 @@ services:
   - type: web
     name: bookmate-api
     runtime: node
-    buildCommand: npm install && npm run db:init
-    startCommand: npm start
+    buildCommand: npm install && node src/db/init.js
+    startCommand: node src/index.js
+    healthCheckPath: /
     envVars:
+      - key: NODE_ENV
+        value: production
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_EXPIRES_IN
         value: 7d
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_SECURE
+        value: "false"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM
+        value: onboarding@resend.dev
