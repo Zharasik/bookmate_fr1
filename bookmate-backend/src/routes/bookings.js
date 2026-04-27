@@ -73,10 +73,19 @@ router.get("/availability/:venueId", async (req, res) => {
       bookedBySlot[b.slot_id].push({ start: b.time, end: endTime });
     }
 
-    const result = slotsRes.rows.map((slot) => ({
-      ...slot,
-      booked_ranges: bookedBySlot[slot.id] || [],
+    // Venue-level ranges — bookings without a specific slot (or all bookings combined)
+    const venueRanges = bookingsRes.rows.map((b) => ({
+      start: b.time,
+      end: b.end_time || addMinutes(b.time, 60),
     }));
+
+    const result = {
+      slots: slotsRes.rows.map((slot) => ({
+        ...slot,
+        booked_ranges: bookedBySlot[slot.id] || [],
+      })),
+      venue_ranges: venueRanges,
+    };
 
     res.json(result);
   } catch (err) {
@@ -198,6 +207,20 @@ router.post("/", auth, async (req, res) => {
     res.status(500).json({ error: "Ошибка сервера" });
   } finally {
     client.release();
+  }
+});
+
+// DELETE /api/bookings/history — clear completed and cancelled bookings
+router.delete("/history", auth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `DELETE FROM bookings WHERE user_id=$1 AND status IN ('completed','cancelled') RETURNING id`,
+      [req.userId],
+    );
+    res.json({ deleted: rows.length });
+  } catch (err) {
+    console.error("Clear history error:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
   }
 });
 

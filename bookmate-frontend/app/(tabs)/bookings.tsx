@@ -12,7 +12,7 @@ import {
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Calendar, Clock, MapPin, X, Star } from "lucide-react-native";
+import { Calendar, Clock, MapPin, X, Star, Trash2 } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useTheme, useT } from "../../hooks/useHelpers";
 import { api } from "../../services/api";
@@ -89,6 +89,7 @@ export default function BookingsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [clearingHistory, setClearingHistory] = useState(false);
 
   // Нормализует старые статусы из БД к новым
   const normalizeStatus = (status: string): string => {
@@ -134,6 +135,31 @@ export default function BookingsScreen() {
           (a.time ?? "").localeCompare(b.time ?? ""),
       );
   }, [allBookings, activeFilter]);
+
+  const handleClearHistory = async () => {
+    const hasHistory = allBookings.some((b) =>
+      b.status === "completed" || b.status === "cancelled"
+    );
+    if (!hasHistory) {
+      Alert.alert("Нет истории", "Нет завершённых или отменённых бронирований.");
+      return;
+    }
+    const confirmed = await confirmAction(
+      "Очистить историю?",
+      "Все завершённые и отменённые брони будут удалены.",
+    );
+    if (!confirmed) return;
+    setClearingHistory(true);
+    try {
+      const res = await api.clearBookingHistory();
+      Alert.alert("Готово", `Удалено записей: ${res.deleted}`);
+      await load();
+    } catch (e: any) {
+      Alert.alert("Ошибка", e.message);
+    } finally {
+      setClearingHistory(false);
+    }
+  };
 
   const handleCancel = async (id: string) => {
     const confirmed = await confirmAction(
@@ -279,9 +305,15 @@ export default function BookingsScreen() {
           { backgroundColor: c.card, borderBottomColor: c.border },
         ]}
       >
+        <View style={{ width: 40 }} />
         <Text style={[styles.headerTitle, { color: c.text }]}>
           {t("myBookings")}
         </Text>
+        <Pressable onPress={handleClearHistory} disabled={clearingHistory} style={{ width: 40, alignItems: 'center' }}>
+          {clearingHistory
+            ? <ActivityIndicator size="small" color={c.danger} />
+            : <Trash2 size={20} color={c.danger} />}
+        </Pressable>
       </View>
 
       <ScrollView
@@ -417,8 +449,8 @@ export default function BookingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 16, paddingVertical: 16, borderBottomWidth: 1 },
-  headerTitle: { fontSize: 20, fontWeight: "700", textAlign: "center" },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 16, borderBottomWidth: 1 },
+  headerTitle: { fontSize: 20, fontWeight: "700", textAlign: "center", flex: 1 },
   filterBar: { maxHeight: 56, marginTop: 10 },
   filterContent: { paddingHorizontal: 16, paddingVertical: 4, gap: 8 },
   chip: {

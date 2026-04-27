@@ -41,9 +41,11 @@ export const api = {
   getVenuePhotos: (id: string) => request<any[]>(`/api/venues/${id}/photos`),
   getVenueSlots: (id: string) => request<any[]>(`/api/venues/${id}/slots`),
   getCategories: () => request<string[]>('/api/venues/meta/categories'),
-  // Returns slots with booked_ranges: [{start, end}] for the given date
+  // Returns { slots: [{...booked_ranges}], venue_ranges: [{start,end}] }
   getSlotAvailability: (venueId: string, date: string) =>
-    request<any[]>(`/api/bookings/availability/${venueId}?date=${date}`),
+    request<{ slots: any[]; venue_ranges: { start: string; end: string }[] }>(
+      `/api/bookings/availability/${venueId}?date=${date}`
+    ),
 
   getBookings: (status?: string) => {
     const qs = status ? `?status=${status}` : '';
@@ -52,6 +54,7 @@ export const api = {
   createBooking: (data: { venue_id: string; slot_id?: string; date: string; time: string; duration: number; guests: number; notes?: string }) =>
     request<any>('/api/bookings', { method: 'POST', body: JSON.stringify(data) }),
   cancelBooking: (id: string) => request<any>(`/api/bookings/${id}/cancel`, { method: 'PATCH' }),
+  clearBookingHistory: () => request<{ deleted: number }>('/api/bookings/history', { method: 'DELETE' }),
 
   getReviews: (venueId: string) => request<any[]>(`/api/reviews/venue/${venueId}`),
   postReview: (data: { venue_id: string; rating: number; comment: string }) =>

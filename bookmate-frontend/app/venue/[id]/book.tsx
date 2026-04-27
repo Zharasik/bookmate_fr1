@@ -108,6 +108,8 @@ export default function BookScreen() {
   const [venue, setVenue] = useState<any>(null);
   // slotData = slots with booked_ranges (from availability endpoint)
   const [slotData, setSlotData] = useState<any[]>([]);
+  // venueRanges = all booked ranges for this venue (for no-slot venues)
+  const [venueRanges, setVenueRanges] = useState<{ start: string; end: string }[]>([]);
   const [userBookings, setUserBookings] = useState<any[]>([]);
   const [loadingVenue, setLoadingVenue] = useState(true);
   const [loadingAvail, setLoadingAvail] = useState(false);
@@ -137,7 +139,8 @@ export default function BookScreen() {
         api.getSlotAvailability(id, dates[selectedDateIdx].iso),
         api.getBookings().catch(() => [] as any[]),
       ]);
-      setSlotData(avail);
+      setSlotData(avail.slots);
+      setVenueRanges(avail.venue_ranges ?? []);
       // Keep only user's active bookings for the selected date
       const iso = dates[selectedDateIdx].iso;
       setUserBookings(
@@ -150,7 +153,10 @@ export default function BookScreen() {
         const slotStillExists = avail.find((s: any) => s.id === selectedSlotId);
         if (!slotStillExists) { setSelectedSlotId(null); setSelectedTime(null); }
       }
-    } catch { }
+    } catch {
+      setSlotData([]);
+      setVenueRanges([]);
+    }
     finally { setLoadingAvail(false); }
   }, [id, venue, selectedDateIdx]);
 
@@ -189,23 +195,33 @@ export default function BookScreen() {
   }
 
   function isTimeTaken(startTime: string): boolean {
-    if (!selectedSlot) return false;
-    const ranges: { start: string; end: string }[] = selectedSlot.booked_ranges ?? [];
+    // Use slot-specific ranges if a slot is selected, otherwise venue-level ranges
+    const ranges: { start: string; end: string }[] =
+      selectedSlot ? (selectedSlot.booked_ranges ?? []) : venueRanges;
     const startAdj = toAdj(startTime);
-    return hasOverlap(startAdj, startAdj + totalDuration, ranges, openMin, isOvernight);
+    // Check against at least 1 unit so all overlapping slots are marked taken
+    const checkEnd = startAdj + Math.max(slotDuration, totalDuration);
+    return hasOverlap(startAdj, checkEnd, ranges, openMin, isOvernight);
   }
 
+  // Gray out only slots where even 1 unit doesn't fit before close
   function isTimeUnavailableDueToUnits(startTime: string): boolean {
     const startAdj = toAdj(startTime);
-    return (startAdj + totalDuration) > adjustedCloseMin;
+    return (startAdj + slotDuration) > adjustedCloseMin;
   }
 
-  // Cross-venue conflict for user (simple linear comparison, no overnight needed here)
+  // Whether the currently selected time + totalDuration overflows close time
+  const selectedTimeOverflows = selectedTime
+    ? (toAdj(selectedTime) + totalDuration) > adjustedCloseMin
+    : false;
+
+  // Cross-venue conflict — only bookings at OTHER venues
   function userConflicts(): any[] {
     if (!selectedTime || !endTime) return [];
     const startAdj = toAdj(selectedTime);
     const endAdj = startAdj + totalDuration;
     return userBookings.filter((b) => {
+      if (b.venue_id === venue?.id) return false; // same venue, ignore
       const bStart = timeToMin(b.time);
       const bEnd = b.end_time ? timeToMin(b.end_time) : bStart + 60;
       return startAdj < bEnd && bStart < endAdj;
@@ -353,11 +369,12 @@ export default function BookScreen() {
             <View style={styles.slotGrid}>
               {slotData.map((slot) => {
                 const slotDur = slot.duration || 60;
+                const slotRanges = slot.booked_ranges ?? [];
                 const allTaken = generateTimeGrid(openTime, closeTime, slotDur).every((tm) => {
                   if (isPastTime(tm, isToday)) return true;
                   const startAdj = normalizeOvernight(timeToMin(tm), openMin, isOvernight);
                   if ((startAdj + slotDur) > adjustedCloseMin) return true;
-                  return hasOverlap(startAdj, startAdj + slotDur, slot.booked_ranges ?? [], openMin, isOvernight);
+                  return hasOverlap(startAdj, startAdj + slotDur, slotRanges, openMin, isOvernight);
                 });
                 const selected = selectedSlotId === slot.id;
                 return (
@@ -424,9 +441,14 @@ export default function BookScreen() {
                   return (
                     <Pressable
                       key={tm}
-                      disabled={disabled}
                       style={[styles.timeSlot, { backgroundColor: bg, borderColor: border, opacity: disabled ? 0.5 : 1 }]}
-                      onPress={() => setSelectedTime(tm)}
+                      onPress={() => {
+                        if (taken) {
+                          Alert.alert('Занято', `Это время уже забронировано. Выберите другое.`);
+                          return;
+                        }
+                        if (!past && !overflow) setSelectedTime(tm);
+                      }}
                     >
                       <Text style={[styles.timeText, { color: textColor }]}>{tm}</Text>
                       {taken && !active && <Text style={{ fontSize: 9, color: '#EF4444', marginTop: 1 }}>занято</Text>}
@@ -475,6 +497,16 @@ export default function BookScreen() {
           </Pressable>
         </View>
 
+        {/* Overflow warning */}
+        {selectedTimeOverflows && (
+          <View style={[styles.conflictBox, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}>
+            <AlertTriangle size={18} color="#EF4444" />
+            <Text style={{ color: '#991B1B', fontSize: 13, flex: 1, marginLeft: 8, lineHeight: 18 }}>
+              Выбранная продолжительность выходит за время закрытия ({closeTime}). Уменьшите количество часов или выберите более раннее время.
+            </Text>
+          </View>
+        )}
+
         {/* Cross-venue conflict warning */}
         {conflicts.length > 0 && (
           <View style={[styles.conflictBox, { backgroundColor: '#FEF3C7', borderColor: '#F59E0B' }]}>
@@ -512,9 +544,9 @@ export default function BookScreen() {
 
       {/* Confirm button */}
       <View style={[styles.footer, { backgroundColor: c.card, borderTopColor: c.border }]}>
-        <Pressable onPress={handleConfirm} disabled={submitting || !selectedTime} style={styles.confirmWrap}>
+        <Pressable onPress={handleConfirm} disabled={submitting || !selectedTime || selectedTimeOverflows} style={styles.confirmWrap}>
           <LinearGradient
-            colors={submitting || !selectedTime ? ['#93C5FD', '#93C5FD'] : ['#2563EB', '#3B82F6']}
+            colors={submitting || !selectedTime || selectedTimeOverflows ? ['#93C5FD', '#93C5FD'] : ['#2563EB', '#3B82F6']}
             style={styles.confirmBtn}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
@@ -522,7 +554,11 @@ export default function BookScreen() {
             {submitting
               ? <ActivityIndicator color="#fff" />
               : <Text style={styles.confirmText}>
-                {selectedTime ? `Забронировать · ${formatDuration(totalDuration)}` : 'Выберите место и время'}
+                {!selectedTime
+                  ? 'Выберите место и время'
+                  : selectedTimeOverflows
+                    ? 'Превышает время закрытия'
+                    : `Забронировать · ${formatDuration(totalDuration)}`}
               </Text>}
           </LinearGradient>
         </Pressable>
