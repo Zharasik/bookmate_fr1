@@ -8,6 +8,7 @@ export interface User {
   name: string;
   avatar_url: string | null;
   phone: string | null;
+  role: 'user' | 'business' | 'admin';
 }
 
 interface AppState {

@@ -1,44 +1,173 @@
 const { Router } = require('express');
 const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
 const pool = require('../db/pool');
 const auth = require('../middleware/auth');
+const {
+  DEFAULT_USER_ROLE,
+  getRoleLandingPath,
+  signAccessToken,
+} = require('../utils/auth');
+const {
+  normalizeEmail,
+  normalizePhone,
+  sanitizeProfileName,
+  validateEmail,
+  validatePassword,
+  validatePhone,
+} = require('../utils/validation');
 
 const router = Router();
 const SALT_ROUNDS = 10;
 
-function signToken(userId) {
-  return jwt.sign({ userId }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
-  });
+function serializeUser(row) {
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    avatar_url: row.avatar_url,
+    phone: row.phone,
+    role: row.role,
+    created_at: row.created_at,
+  };
+}
+
+function authPayload(user) {
+  return {
+    token: signAccessToken(user),
+    user: serializeUser(user),
+    redirectTo: getRoleLandingPath(user.role),
+  };
+}
+
+function getUniqueViolationMessage(detail) {
+  if (detail && detail.includes('email')) {
+    return 'Пользователь с таким email уже существует';
+  }
+
+  if (detail && detail.includes('phone')) {
+    return 'Пользователь с таким телефоном уже существует';
+  }
+
+  return 'Пользователь с такими данными уже существует';
+}
+
+async function ensureUniqueCredentials({ email, phone, excludeUserId = null }) {
+  const checks = [];
+
+  if (email) {
+    checks.push(
+      pool.query(
+        `SELECT id FROM users
+         WHERE lower(email) = lower($1)
+           AND ($2::uuid IS NULL OR id <> $2::uuid)
+         LIMIT 1`,
+        [email, excludeUserId]
+      ).then(({ rows }) => {
+        if (rows.length > 0) {
+          throw new Error('Пользователь с таким email уже существует');
+        }
+      })
+    );
+  }
+
+  if (phone) {
+    checks.push(
+      pool.query(
+        `SELECT id FROM users
+         WHERE phone = $1
+           AND ($2::uuid IS NULL OR id <> $2::uuid)
+         LIMIT 1`,
+        [phone, excludeUserId]
+      ).then(({ rows }) => {
+        if (rows.length > 0) {
+          throw new Error('Пользователь с таким телефоном уже существует');
+        }
+      })
+    );
+  }
+
+  await Promise.all(checks);
+}
+
+async function findUserByLoginIdentifier(identifier) {
+  const email = normalizeEmail(identifier);
+  if (email) {
+    const { rows } = await pool.query(
+      `SELECT id, email, name, avatar_url, phone, password_hash, role, created_at
+       FROM users
+       WHERE lower(email) = lower($1)
+       LIMIT 1`,
+      [email]
+    );
+    if (rows.length > 0) {
+      return rows[0];
+    }
+  }
+
+  const phone = normalizePhone(identifier);
+  if (phone) {
+    const { rows } = await pool.query(
+      `SELECT id, email, name, avatar_url, phone, password_hash, role, created_at
+       FROM users
+       WHERE phone = $1
+       LIMIT 1`,
+      [phone]
+    );
+    if (rows.length > 0) {
+      return rows[0];
+    }
+  }
+
+  return null;
 }
 
 // ─── REGISTER ────────────────────────────────────────
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, name } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email и пароль обязательны' });
+    const { email, password, name, phone } = req.body || {};
+    const emailResult = validateEmail(email);
+    if (emailResult.error) {
+      return res.status(400).json({ error: emailResult.error });
     }
 
-    const exists = await pool.query('SELECT id FROM users WHERE email=$1', [email.toLowerCase()]);
-    if (exists.rows.length > 0) {
-      return res.status(409).json({ error: 'Пользователь с таким email уже существует' });
+    const passwordResult = validatePassword(password);
+    if (passwordResult.error) {
+      return res.status(400).json({ error: passwordResult.error });
     }
 
-    const hash = await bcrypt.hash(password, SALT_ROUNDS);
+    const phoneResult = validatePhone(phone);
+    if (phoneResult.error) {
+      return res.status(400).json({ error: phoneResult.error });
+    }
+
+    await ensureUniqueCredentials({
+      email: emailResult.value,
+      phone: phoneResult.value,
+    });
+
+    const hash = await bcrypt.hash(passwordResult.value, SALT_ROUNDS);
     const { rows } = await pool.query(
-      `INSERT INTO users (email, password_hash, name)
-       VALUES ($1, $2, $3)
+      `INSERT INTO users (email, phone, password_hash, name, role)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING id, email, name, avatar_url, phone, role, created_at`,
-      [email.toLowerCase(), hash, name || '']
+      [
+        emailResult.value,
+        phoneResult.value,
+        hash,
+        sanitizeProfileName(name),
+        DEFAULT_USER_ROLE,
+      ]
     );
 
     const user = rows[0];
-    const token = signToken(user.id);
-
-    res.status(201).json({ token, user });
+    res.status(201).json(authPayload(user));
   } catch (err) {
+    if (err.message && err.message.includes('существует')) {
+      return res.status(409).json({ error: err.message });
+    }
+    if (err.code === '23505') {
+      return res.status(409).json({ error: getUniqueViolationMessage(err.detail) });
+    }
     console.error('Register error:', err);
     res.status(500).json({ error: 'Ошибка сервера' });
   }
@@ -47,29 +176,24 @@ router.post('/register', async (req, res) => {
 // ─── LOGIN ───────────────────────────────────────────
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email и пароль обязательны' });
+    const { email, phone, identifier, password } = req.body || {};
+    const loginIdentifier = email || phone || identifier;
+
+    if (!loginIdentifier || !password) {
+      return res.status(400).json({ error: 'Email или телефон, а также пароль обязательны' });
     }
 
-    const { rows } = await pool.query(
-      'SELECT id, email, name, avatar_url, phone, password_hash, role, created_at FROM users WHERE email=$1',
-      [email.toLowerCase()]
-    );
-    if (rows.length === 0) {
-      return res.status(401).json({ error: 'Неверный email или пароль' });
+    const user = await findUserByLoginIdentifier(loginIdentifier);
+    if (!user) {
+      return res.status(401).json({ error: 'Неверный email/телефон или пароль' });
     }
 
-    const user = rows[0];
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) {
-      return res.status(401).json({ error: 'Неверный email или пароль' });
+      return res.status(401).json({ error: 'Неверный email/телефон или пароль' });
     }
 
-    delete user.password_hash;
-    const token = signToken(user.id);
-
-    res.json({ token, user });
+    res.json(authPayload(user));
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'Ошибка сервера' });
@@ -79,12 +203,10 @@ router.post('/login', async (req, res) => {
 // ─── GET CURRENT USER ────────────────────────────────
 router.get('/me', auth, async (req, res) => {
   try {
-    const { rows } = await pool.query(
-      'SELECT id, email, name, avatar_url, phone, role, created_at FROM users WHERE id=$1',
-      [req.userId]
-    );
-    if (rows.length === 0) return res.status(404).json({ error: 'Пользователь не найден' });
-    res.json(rows[0]);
+    res.json({
+      ...serializeUser(req.user),
+      redirectTo: getRoleLandingPath(req.user.role),
+    });
   } catch (err) {
     console.error('Me error:', err);
     res.status(500).json({ error: 'Ошибка сервера' });
@@ -94,18 +216,46 @@ router.get('/me', auth, async (req, res) => {
 // ─── UPDATE PROFILE ──────────────────────────────────
 router.put('/me', auth, async (req, res) => {
   try {
-    const { name, phone, avatar_url } = req.body;
+    const { name, phone, avatar_url } = req.body || {};
+    const phoneResult = validatePhone(phone);
+    if (phoneResult.error) {
+      return res.status(400).json({ error: phoneResult.error });
+    }
+
+    await ensureUniqueCredentials({
+      phone: phoneResult.value,
+      excludeUserId: req.userId,
+    });
+
     const { rows } = await pool.query(
       `UPDATE users SET
-         name = COALESCE($1, name),
-         phone = COALESCE($2, phone),
-         avatar_url = COALESCE($3, avatar_url)
-       WHERE id = $4
+         name = CASE WHEN $4 THEN $1 ELSE name END,
+         phone = CASE WHEN $5 THEN $2 ELSE phone END,
+         avatar_url = CASE WHEN $6 THEN $3 ELSE avatar_url END
+       WHERE id = $7
        RETURNING id, email, name, avatar_url, phone, role, created_at`,
-      [name, phone, avatar_url, req.userId]
+      [
+        sanitizeProfileName(name),
+        phoneResult.value,
+        avatar_url ?? null,
+        name !== undefined,
+        phone !== undefined,
+        avatar_url !== undefined,
+        req.userId,
+      ]
     );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Пользователь не найден' });
+    }
+
     res.json(rows[0]);
   } catch (err) {
+    if (err.message && err.message.includes('существует')) {
+      return res.status(409).json({ error: err.message });
+    }
+    if (err.code === '23505') {
+      return res.status(409).json({ error: getUniqueViolationMessage(err.detail) });
+    }
     console.error('Update profile error:', err);
     res.status(500).json({ error: 'Ошибка сервера' });
   }

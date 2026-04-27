@@ -1,24 +1,15 @@
-const jwt = require('jsonwebtoken');
-const pool = require('../db/pool');
+const auth = require('./auth');
+const roleCheck = require('./roleCheck');
+const { USER_ROLES } = require('../utils/auth');
 
 async function adminAuth(req, res, next) {
-  const header = req.headers.authorization;
-  if (!header || !header.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Токен не предоставлен' });
-  }
-
-  try {
-    const token = header.split(' ')[1];
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    const { rows } = await pool.query('SELECT role FROM users WHERE id=$1', [payload.userId]);
-    if (!rows[0] || rows[0].role !== 'admin') {
-      return res.status(403).json({ error: 'Доступ запрещён' });
+  auth(req, res, (authError) => {
+    if (authError) {
+      return next(authError);
     }
-    req.userId = payload.userId;
-    next();
-  } catch {
-    return res.status(401).json({ error: 'Неверный или истекший токен' });
-  }
+
+    return roleCheck(USER_ROLES.ADMIN)(req, res, next);
+  });
 }
 
 module.exports = adminAuth;

@@ -4,6 +4,12 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 
+const requiredEnv = ['DATABASE_URL', 'JWT_SECRET'];
+const missingEnv = requiredEnv.filter((key) => !process.env[key]);
+if (missingEnv.length > 0) {
+  throw new Error(`Missing required environment variables: ${missingEnv.join(', ')}`);
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -15,7 +21,9 @@ app.use(express.json());
 app.use('/uploads', express.static(uploadsDir));
 
 // Public API
-app.use('/api/auth', require('./routes/auth'));
+const authRoutes = require('./routes/auth');
+app.use('/api/auth', authRoutes);
+app.use('/auth', authRoutes);
 app.use('/api/venues', require('./routes/venues'));
 app.use('/api/bookings', require('./routes/bookings'));
 app.use('/api/reviews', require('./routes/reviews'));
@@ -28,6 +36,7 @@ app.use('/api/promotions', require('./routes/promotions'));
 
 // Admin API (requires role=admin)
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/business', require('./routes/business'));
 
 // Serve Admin Panel
 app.use('/admin', express.static(path.join(__dirname, '..', 'public', 'admin')));
