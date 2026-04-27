@@ -238,6 +238,23 @@ DO $$ BEGIN
     CHECK (status IN ('upcoming','pending','confirmed','completed','cancelled'));
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
+
+-- Add duration (minutes) to venue_slots
+DO $$ BEGIN
+  ALTER TABLE venue_slots ADD COLUMN IF NOT EXISTS duration INTEGER DEFAULT 60;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+-- Backfill end_time for existing bookings that don't have it (assume 60 min)
+DO $$ BEGIN
+  UPDATE bookings
+  SET end_time = to_char(
+    to_timestamp(date::text || ' ' || time, 'YYYY-MM-DD HH24:MI') + interval '60 minutes',
+    'HH24:MI'
+  )
+  WHERE end_time IS NULL;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 `;
 
 const SEED_VENUES = `

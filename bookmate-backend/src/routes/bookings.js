@@ -4,11 +4,27 @@ const auth = require("../middleware/auth");
 
 const router = Router();
 
+function timeToMin(t) {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function minToTime(min) {
+  const h = Math.floor(min / 60) % 24;
+  const m = min % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function addMinutes(timeStr, mins) {
+  return minToTime(timeToMin(timeStr) + mins);
+}
+
+// GET /api/bookings — user's own bookings
 router.get("/", auth, async (req, res) => {
   try {
     const { status } = req.query;
     let sql = `SELECT b.*, v.name AS venue_name, v.image_url AS venue_image,
-                v.location AS venue_location, v.category AS venue_category, vs.name AS slot_name
+                v.location AS venue_location, v.category AS venue_category, vs.name AS slot_name, vs.duration AS slot_duration
                FROM bookings b
                JOIN venues v ON v.id = b.venue_id
                LEFT JOIN venue_slots vs ON vs.id = b.slot_id
@@ -27,79 +43,123 @@ router.get("/", auth, async (req, res) => {
   }
 });
 
+// GET /api/bookings/availability/:venueId?date=YYYY-MM-DD
+// Returns all active slots with their booked time ranges for the given date
 router.get("/availability/:venueId", async (req, res) => {
   try {
-    const { date, time } = req.query;
-    if (!date || !time)
-      return res.status(400).json({ error: "date и time обязательны" });
-    const { rows } = await pool.query(
-      `SELECT vs.*, CASE WHEN b.id IS NOT NULL THEN true ELSE false END AS is_booked
-       FROM venue_slots vs
-       LEFT JOIN bookings b ON b.slot_id=vs.id AND b.date=$1 AND b.time=$2 AND b.status NOT IN ('cancelled')
-       WHERE vs.venue_id=$3 AND vs.is_active=true ORDER BY vs.name`,
-      [date, time, req.params.venueId],
+    const { date } = req.query;
+    if (!date) return res.status(400).json({ error: "date обязателен" });
+
+    // All active slots for this venue
+    const slotsRes = await pool.query(
+      `SELECT id, name, description, capacity, price, duration
+       FROM venue_slots WHERE venue_id=$1 AND is_active=true ORDER BY name`,
+      [req.params.venueId],
     );
-    res.json(rows);
+
+    // All non-cancelled bookings for this venue+date
+    const bookingsRes = await pool.query(
+      `SELECT slot_id, time, end_time FROM bookings
+       WHERE venue_id=$1 AND date=$2 AND status NOT IN ('cancelled')`,
+      [req.params.venueId, date],
+    );
+
+    // Group booked ranges by slot_id
+    const bookedBySlot = {};
+    for (const b of bookingsRes.rows) {
+      if (!b.slot_id) continue;
+      if (!bookedBySlot[b.slot_id]) bookedBySlot[b.slot_id] = [];
+      const endTime = b.end_time || addMinutes(b.time, 60);
+      bookedBySlot[b.slot_id].push({ start: b.time, end: endTime });
+    }
+
+    const result = slotsRes.rows.map((slot) => ({
+      ...slot,
+      booked_ranges: bookedBySlot[slot.id] || [],
+    }));
+
+    res.json(result);
   } catch (err) {
+    console.error("Availability error:", err);
     res.status(500).json({ error: "Ошибка сервера" });
   }
 });
 
-// Critical: conflict detection with transaction locking
+// POST /api/bookings — create booking with overlap-based conflict detection
 router.post("/", auth, async (req, res) => {
   const client = await pool.connect();
   try {
-    const { venue_id, slot_id, date, time, end_time, guests, notes } = req.body;
+    const { venue_id, slot_id, date, time, duration, guests, notes } = req.body;
     if (!venue_id || !date || !time)
-      return res
-        .status(400)
-        .json({ error: "venue_id, date и time обязательны" });
+      return res.status(400).json({ error: "venue_id, date и time обязательны" });
+
+    // Reject past bookings
+    const bookingDateTime = new Date(`${date}T${time}:00`);
+    if (bookingDateTime <= new Date())
+      return res.status(400).json({ error: "Нельзя забронировать на уже прошедшее время." });
+
+    // Determine duration: from request → slot → default 60
+    let bookingDuration = duration || 60;
+    if (slot_id && !duration) {
+      const slotDur = await pool.query("SELECT duration FROM venue_slots WHERE id=$1", [slot_id]);
+      if (slotDur.rows[0]) bookingDuration = slotDur.rows[0].duration || 60;
+    }
+    const endTime = addMinutes(time, bookingDuration);
 
     await client.query("BEGIN");
-    await client.query("SELECT id FROM venues WHERE id=$1 FOR UPDATE", [
-      venue_id,
-    ]);
+    await client.query("SELECT id FROM venues WHERE id=$1 FOR UPDATE", [venue_id]);
 
-    // Rule 1: user can't book two places at same time
+    // Rule 1: user can't have overlapping booking at any venue
     const userConflict = await client.query(
-      `SELECT id FROM bookings WHERE user_id=$1 AND date=$2 AND time=$3 AND status NOT IN ('cancelled') LIMIT 1`,
-      [req.userId, date, time],
+      `SELECT b.id, v.name AS venue_name FROM bookings b
+       JOIN venues v ON v.id = b.venue_id
+       WHERE b.user_id=$1 AND b.date=$2 AND b.status NOT IN ('cancelled')
+         AND b.time < $4 AND b.end_time > $3
+       LIMIT 1`,
+      [req.userId, date, time, endTime],
     );
     if (userConflict.rows.length > 0) {
       await client.query("ROLLBACK");
       return res.status(409).json({
-        error: `У вас уже есть бронь на ${date} в ${time}. Один человек не может находиться в двух местах одновременно.`,
+        error: `У вас уже есть бронь на это время в "${userConflict.rows[0].venue_name}". Один человек не может находиться в двух местах одновременно.`,
         conflict: "user_time",
       });
     }
 
-    // Rule 2: slot can't be double-booked
+    // Rule 2: slot can't be double-booked (overlap)
     if (slot_id) {
       const slotConflict = await client.query(
-        `SELECT id FROM bookings WHERE slot_id=$1 AND date=$2 AND time=$3 AND status NOT IN ('cancelled') LIMIT 1`,
-        [slot_id, date, time],
+        `SELECT id FROM bookings
+         WHERE slot_id=$1 AND date=$2 AND status NOT IN ('cancelled')
+           AND time < $4 AND end_time > $3
+         LIMIT 1`,
+        [slot_id, date, time, endTime],
       );
       if (slotConflict.rows.length > 0) {
         await client.query("ROLLBACK");
         return res.status(409).json({
-          error:
-            "Это место уже занято на выбранное время. Выберите другой слот или время.",
+          error: "Это место уже занято на выбранное время. Выберите другой слот или время.",
           conflict: "slot_taken",
         });
       }
     }
 
+    // Calculate price
     let totalPrice = 0;
     if (slot_id) {
       const slotRow = await client.query(
-        "SELECT price FROM venue_slots WHERE id=$1",
+        "SELECT price, duration FROM venue_slots WHERE id=$1",
         [slot_id],
       );
       if (!slotRow.rows[0]) {
         await client.query("ROLLBACK");
         return res.status(404).json({ error: "Слот не найден" });
       }
-      totalPrice = slotRow.rows[0].price || 0;
+      const slotPrice = slotRow.rows[0].price || 0;
+      const slotDuration = slotRow.rows[0].duration || 60;
+      // price is per-duration-unit; multiply by how many units booked
+      const units = Math.round(bookingDuration / slotDuration);
+      totalPrice = slotPrice * Math.max(1, units);
     }
 
     const { rows } = await client.query(
@@ -111,7 +171,7 @@ router.post("/", auth, async (req, res) => {
         slot_id || null,
         date,
         time,
-        end_time || null,
+        endTime,
         guests || 1,
         totalPrice,
         notes || null,
@@ -119,16 +179,14 @@ router.post("/", auth, async (req, res) => {
     );
     await client.query("COMMIT");
 
-    const venue = await pool.query("SELECT name FROM venues WHERE id=$1", [
-      venue_id,
-    ]);
+    const venue = await pool.query("SELECT name FROM venues WHERE id=$1", [venue_id]);
     const venueName = venue.rows[0]?.name || "Заведение";
     pool
       .query(
         `INSERT INTO notifications (user_id,type,title,message) VALUES ($1,'booking','Бронь отправлена',$2)`,
         [
           req.userId,
-          `Ваша бронь в "${venueName}" на ${date} в ${time} отправлена и ожидает подтверждения.`,
+          `Ваша бронь в "${venueName}" на ${date} в ${time}–${endTime} отправлена и ожидает подтверждения.`,
         ],
       )
       .catch(console.error);
@@ -145,7 +203,6 @@ router.post("/", auth, async (req, res) => {
 
 router.patch("/:id/cancel", auth, async (req, res) => {
   try {
-    // status NOT IN список включает старый 'upcoming' статус — он тоже должен отменяться
     const { rows } = await pool.query(
       `UPDATE bookings SET status='cancelled'
        WHERE id=$1 AND user_id=$2
@@ -154,14 +211,10 @@ router.patch("/:id/cancel", auth, async (req, res) => {
       [req.params.id, req.userId],
     );
     if (!rows[0])
-      return res
-        .status(404)
-        .json({ error: "Бронь не найдена или уже завершена/отменена" });
+      return res.status(404).json({ error: "Бронь не найдена или уже завершена/отменена" });
 
     const booking = rows[0];
-    const venue = await pool.query("SELECT name FROM venues WHERE id=$1", [
-      booking.venue_id,
-    ]);
+    const venue = await pool.query("SELECT name FROM venues WHERE id=$1", [booking.venue_id]);
     const venueName = venue.rows[0]?.name || "Заведение";
     pool
       .query(

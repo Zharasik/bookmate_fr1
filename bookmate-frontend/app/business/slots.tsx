@@ -5,9 +5,27 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ChevronLeft, Plus, Edit2, Trash2, X } from 'lucide-react-native';
+import { ChevronLeft, Plus, Edit2, Trash2, X, Clock } from 'lucide-react-native';
 import { useTheme } from '../../hooks/useHelpers';
 import { api } from '../../services/api';
+
+const DURATION_OPTIONS = [
+  { label: '15 мин', value: 15 },
+  { label: '30 мин', value: 30 },
+  { label: '45 мин', value: 45 },
+  { label: '1 час', value: 60 },
+  { label: '1.5 ч', value: 90 },
+  { label: '2 часа', value: 120 },
+  { label: '3 часа', value: 180 },
+  { label: '4 часа', value: 240 },
+];
+
+function formatDuration(min: number): string {
+  if (min < 60) return `${min} мин`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m === 0 ? `${h} ч` : `${h} ч ${m} мин`;
+}
 
 export default function SlotsScreen() {
   const router = useRouter();
@@ -21,26 +39,34 @@ export default function SlotsScreen() {
   const [editing, setEditing] = useState<any>(null);
   const [saving, setSaving] = useState(false);
 
-  const [form, setForm] = useState({ name: '', description: '', price: '', capacity: '1', is_active: true });
+  const [form, setForm] = useState({
+    name: '', description: '', price: '', capacity: '1', duration: 60, is_active: true,
+  });
 
   const load = useCallback(async () => {
     if (!venueId) return;
-    try { setSlots(await api.business.getSlots(venueId)); } catch { /* ignore */ } finally {
-      setLoading(false); setRefreshing(false);
-    }
+    try { setSlots(await api.business.getSlots(venueId)); } catch { }
+    finally { setLoading(false); setRefreshing(false); }
   }, [venueId]);
 
   useEffect(() => { load(); }, [load]);
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ name: '', description: '', price: '', capacity: '1', is_active: true });
+    setForm({ name: '', description: '', price: '', capacity: '1', duration: 60, is_active: true });
     setShowModal(true);
   };
 
   const openEdit = (slot: any) => {
     setEditing(slot);
-    setForm({ name: slot.name, description: slot.description || '', price: String(slot.price || ''), capacity: String(slot.capacity || 1), is_active: slot.is_active });
+    setForm({
+      name: slot.name,
+      description: slot.description || '',
+      price: String(slot.price || ''),
+      capacity: String(slot.capacity || 1),
+      duration: slot.duration || 60,
+      is_active: slot.is_active,
+    });
     setShowModal(true);
   };
 
@@ -48,7 +74,14 @@ export default function SlotsScreen() {
     if (!form.name.trim()) { Alert.alert('Ошибка', 'Название обязательно'); return; }
     setSaving(true);
     try {
-      const data = { name: form.name.trim(), description: form.description.trim() || undefined, price: Number(form.price) || 0, capacity: Number(form.capacity) || 1, is_active: form.is_active };
+      const data = {
+        name: form.name.trim(),
+        description: form.description.trim() || undefined,
+        price: Number(form.price) || 0,
+        capacity: Number(form.capacity) || 1,
+        duration: form.duration,
+        is_active: form.is_active,
+      };
       if (editing) {
         await api.business.updateSlot(editing.id, data);
       } else {
@@ -66,9 +99,11 @@ export default function SlotsScreen() {
   const handleDelete = (id: string, name: string) => {
     Alert.alert('Удалить слот?', `"${name}" будет удалён.`, [
       { text: 'Отмена', style: 'cancel' },
-      { text: 'Удалить', style: 'destructive', onPress: async () => {
-        try { await api.business.deleteSlot(id); load(); } catch (e: any) { Alert.alert('Ошибка', e.message); }
-      }},
+      {
+        text: 'Удалить', style: 'destructive', onPress: async () => {
+          try { await api.business.deleteSlot(id); load(); } catch (e: any) { Alert.alert('Ошибка', e.message); }
+        }
+      },
     ]);
   };
 
@@ -82,7 +117,7 @@ export default function SlotsScreen() {
           <Text style={[styles.headerTitle, { color: c.text }]} numberOfLines={1}>
             {decodeURIComponent(venueName || '')}
           </Text>
-          <Text style={[styles.headerSub, { color: c.textMuted }]}>Управление слотами</Text>
+          <Text style={[styles.headerSub, { color: c.textMuted }]}>Управление местами / слотами</Text>
         </View>
         <Pressable style={[styles.addBtn, { backgroundColor: c.primary }]} onPress={openCreate}>
           <Plus size={20} color="#fff" />
@@ -101,17 +136,23 @@ export default function SlotsScreen() {
             {slots.map((slot) => (
               <View key={slot.id} style={[styles.slotCard, { backgroundColor: c.card }]}>
                 <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <Text style={[styles.slotName, { color: c.text }]}>{slot.name}</Text>
-                    <View style={[styles.activeChip, { backgroundColor: slot.is_active ? '#D1FAE5' : '#FEE2E2' }]}>
+                    <View style={[styles.chip, { backgroundColor: slot.is_active ? '#D1FAE5' : '#FEE2E2' }]}>
                       <Text style={{ color: slot.is_active ? '#10B981' : '#EF4444', fontSize: 11, fontWeight: '600' }}>
                         {slot.is_active ? 'Активен' : 'Выкл'}
+                      </Text>
+                    </View>
+                    <View style={[styles.chip, { backgroundColor: `${c.primary}15` }]}>
+                      <Clock size={10} color={c.primary} />
+                      <Text style={{ color: c.primary, fontSize: 11, fontWeight: '600', marginLeft: 3 }}>
+                        {formatDuration(slot.duration || 60)}
                       </Text>
                     </View>
                   </View>
                   {slot.description ? <Text style={[styles.slotDesc, { color: c.textSecondary }]}>{slot.description}</Text> : null}
                   <Text style={[styles.slotMeta, { color: c.textMuted }]}>
-                    {slot.price > 0 ? `${slot.price.toLocaleString()} ₸/час` : 'Бесплатно'} · {slot.capacity} чел.
+                    {slot.price > 0 ? `${slot.price.toLocaleString()} ₸/${formatDuration(slot.duration || 60)}` : 'Бесплатно'} · {slot.capacity} чел.
                   </Text>
                 </View>
                 <View style={styles.slotActions}>
@@ -126,10 +167,13 @@ export default function SlotsScreen() {
             ))}
             {slots.length === 0 && (
               <View style={styles.emptyWrap}>
-                <Text style={[styles.emptyTitle, { color: c.text }]}>Слотов пока нет</Text>
-                <Text style={[styles.emptySub, { color: c.textMuted }]}>Добавьте кресла, столы, дорожки или любые позиции</Text>
+                <Text style={[styles.emptyTitle, { color: c.text }]}>Мест пока нет</Text>
+                <Text style={[styles.emptySub, { color: c.textMuted }]}>
+                  Добавьте кресла, столы, дорожки, компьютеры или любые позиции.{'\n'}
+                  Укажите длительность — клиенты смогут бронировать несколько единиц подряд.
+                </Text>
                 <Pressable style={[styles.emptyBtn, { backgroundColor: c.primary }]} onPress={openCreate}>
-                  <Text style={{ color: '#fff', fontWeight: '700' }}>+ Добавить слот</Text>
+                  <Text style={{ color: '#fff', fontWeight: '700' }}>+ Добавить место</Text>
                 </Pressable>
               </View>
             )}
@@ -139,42 +183,101 @@ export default function SlotsScreen() {
       {/* Slot form modal */}
       <Modal visible={showModal} animationType="slide" transparent>
         <View style={styles.overlay}>
-          <View style={[styles.modal, { backgroundColor: c.card }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: c.text }]}>
-                {editing ? 'Изменить слот' : 'Новый слот'}
+          <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
+            <View style={[styles.modal, { backgroundColor: c.card }]}>
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: c.text }]}>
+                  {editing ? 'Изменить место' : 'Новое место / слот'}
+                </Text>
+                <Pressable onPress={() => setShowModal(false)}>
+                  <X size={24} color={c.text} />
+                </Pressable>
+              </View>
+
+              <Text style={[styles.fieldLabel, { color: c.text }]}>Название *</Text>
+              <TextInput
+                style={[styles.field, { backgroundColor: c.bg, borderColor: c.border, color: c.text }]}
+                placeholder="Стол #1, Дорожка 3, ПК №5, VIP-зал..."
+                placeholderTextColor={c.textMuted}
+                value={form.name}
+                onChangeText={(v) => setForm((p) => ({ ...p, name: v }))}
+              />
+
+              <Text style={[styles.fieldLabel, { color: c.text }]}>Описание / характеристики</Text>
+              <TextInput
+                style={[styles.field, { backgroundColor: c.bg, borderColor: c.border, color: c.text }]}
+                placeholder="Мастер: Алибек · VIP-зона · у окна..."
+                placeholderTextColor={c.textMuted}
+                value={form.description}
+                onChangeText={(v) => setForm((p) => ({ ...p, description: v }))}
+              />
+
+              <Text style={[styles.fieldLabel, { color: c.text }]}>Длительность одного слота *</Text>
+              <Text style={[styles.fieldHint, { color: c.textMuted }]}>
+                Клиент сможет забронировать 1, 2, 3... таких интервала подряд
               </Text>
-              <Pressable onPress={() => setShowModal(false)}>
-                <X size={24} color={c.text} />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 6 }}>
+                {DURATION_OPTIONS.map((opt) => (
+                  <Pressable
+                    key={opt.value}
+                    style={[styles.durationChip, {
+                      backgroundColor: form.duration === opt.value ? c.primary : c.bg,
+                      borderColor: form.duration === opt.value ? c.primary : c.border,
+                    }]}
+                    onPress={() => setForm((p) => ({ ...p, duration: opt.value }))}
+                  >
+                    <Text style={{ color: form.duration === opt.value ? '#fff' : c.text, fontWeight: '600', fontSize: 13 }}>
+                      {opt.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.fieldLabel, { color: c.text }]}>Цена (₸/{formatDuration(form.duration)})</Text>
+                  <TextInput
+                    style={[styles.field, { backgroundColor: c.bg, borderColor: c.border, color: c.text }]}
+                    placeholder="0"
+                    placeholderTextColor={c.textMuted}
+                    keyboardType="number-pad"
+                    value={form.price}
+                    onChangeText={(v) => setForm((p) => ({ ...p, price: v }))}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.fieldLabel, { color: c.text }]}>Вместимость</Text>
+                  <TextInput
+                    style={[styles.field, { backgroundColor: c.bg, borderColor: c.border, color: c.text }]}
+                    placeholder="1"
+                    placeholderTextColor={c.textMuted}
+                    keyboardType="number-pad"
+                    value={form.capacity}
+                    onChangeText={(v) => setForm((p) => ({ ...p, capacity: v }))}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.switchRow}>
+                <Text style={[styles.fieldLabel, { color: c.text, marginBottom: 0 }]}>Активен</Text>
+                <Switch
+                  value={form.is_active}
+                  onValueChange={(v) => setForm((p) => ({ ...p, is_active: v }))}
+                  trackColor={{ true: c.primary, false: c.border }}
+                />
+              </View>
+
+              <Pressable
+                style={[styles.saveBtn, { backgroundColor: saving ? '#93C5FD' : c.primary }]}
+                onPress={handleSave}
+                disabled={saving}
+              >
+                {saving
+                  ? <ActivityIndicator color="#fff" />
+                  : <Text style={styles.saveTxt}>{editing ? 'Сохранить' : 'Добавить'}</Text>}
               </Pressable>
             </View>
-
-            <Text style={[styles.fieldLabel, { color: c.text }]}>Название *</Text>
-            <TextInput style={[styles.field, { backgroundColor: c.bg, borderColor: c.border, color: c.text }]} placeholder="Кресло #1, Стол A..." placeholderTextColor={c.textMuted} value={form.name} onChangeText={(v) => setForm((p) => ({ ...p, name: v }))} />
-
-            <Text style={[styles.fieldLabel, { color: c.text }]}>Описание</Text>
-            <TextInput style={[styles.field, { backgroundColor: c.bg, borderColor: c.border, color: c.text }]} placeholder="Мастер: Алибек, VIP зона..." placeholderTextColor={c.textMuted} value={form.description} onChangeText={(v) => setForm((p) => ({ ...p, description: v }))} />
-
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.fieldLabel, { color: c.text }]}>Цена (₸/час)</Text>
-                <TextInput style={[styles.field, { backgroundColor: c.bg, borderColor: c.border, color: c.text }]} placeholder="0" placeholderTextColor={c.textMuted} keyboardType="number-pad" value={form.price} onChangeText={(v) => setForm((p) => ({ ...p, price: v }))} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.fieldLabel, { color: c.text }]}>Вместимость</Text>
-                <TextInput style={[styles.field, { backgroundColor: c.bg, borderColor: c.border, color: c.text }]} placeholder="1" placeholderTextColor={c.textMuted} keyboardType="number-pad" value={form.capacity} onChangeText={(v) => setForm((p) => ({ ...p, capacity: v }))} />
-              </View>
-            </View>
-
-            <View style={styles.switchRow}>
-              <Text style={[styles.fieldLabel, { color: c.text, marginBottom: 0 }]}>Активен</Text>
-              <Switch value={form.is_active} onValueChange={(v) => setForm((p) => ({ ...p, is_active: v }))} trackColor={{ true: c.primary, false: c.border }} />
-            </View>
-
-            <Pressable style={[styles.saveBtn, { backgroundColor: saving ? '#93C5FD' : c.primary }]} onPress={handleSave} disabled={saving}>
-              {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveTxt}>{editing ? 'Сохранить' : 'Добавить'}</Text>}
-            </Pressable>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
     </SafeAreaView>
@@ -191,9 +294,9 @@ const styles = StyleSheet.create({
   listInner: { padding: 16, gap: 12, paddingBottom: 40 },
   slotCard: { borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, elevation: 2 },
   slotName: { fontSize: 15, fontWeight: '700' },
-  slotDesc: { fontSize: 13, marginTop: 2 },
+  slotDesc: { fontSize: 13, marginTop: 4 },
   slotMeta: { fontSize: 12, marginTop: 4 },
-  activeChip: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+  chip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   slotActions: { flexDirection: 'row', gap: 8 },
   iconBtn: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   emptyWrap: { alignItems: 'center', marginTop: 80, paddingHorizontal: 32 },
@@ -201,11 +304,14 @@ const styles = StyleSheet.create({
   emptySub: { fontSize: 14, textAlign: 'center', lineHeight: 22, marginBottom: 24 },
   emptyBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14 },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modal: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
+  modalScroll: { justifyContent: 'flex-end', flexGrow: 1 },
+  modal: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle: { fontSize: 20, fontWeight: '700' },
   fieldLabel: { fontSize: 14, fontWeight: '600', marginBottom: 6, marginTop: 12 },
+  fieldHint: { fontSize: 12, marginBottom: 4, marginTop: -4 },
   field: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, height: 48, fontSize: 15 },
+  durationChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5 },
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 },
   saveBtn: { marginTop: 24, paddingVertical: 16, borderRadius: 14, alignItems: 'center' },
   saveTxt: { color: '#fff', fontSize: 16, fontWeight: '700' },

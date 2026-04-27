@@ -173,14 +173,14 @@ router.post("/venues/:venueId/slots", async (req, res) => {
     if (check.rows.length === 0)
       return res.status(404).json({ error: "Заведение не найдено" });
 
-    const { name, description, capacity, price } = req.body;
+    const { name, description, capacity, price, duration } = req.body;
     if (!name)
       return res.status(400).json({ error: "Название слота обязательно" });
 
     const { rows } = await pool.query(
-      `INSERT INTO venue_slots (venue_id, name, description, capacity, price)
-       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-      [req.params.venueId, name, description, capacity || 1, price || 0],
+      `INSERT INTO venue_slots (venue_id, name, description, capacity, price, duration)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [req.params.venueId, name, description, capacity || 1, price || 0, duration || 60],
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -191,7 +191,7 @@ router.post("/venues/:venueId/slots", async (req, res) => {
 
 router.put("/slots/:slotId", async (req, res) => {
   try {
-    const { name, description, capacity, price, is_active } = req.body;
+    const { name, description, capacity, price, duration, is_active } = req.body;
     const check = await pool.query(
       `SELECT vs.id FROM venue_slots vs
        JOIN venues v ON v.id=vs.venue_id
@@ -205,9 +205,9 @@ router.put("/slots/:slotId", async (req, res) => {
       `UPDATE venue_slots SET
          name=COALESCE($1,name), description=COALESCE($2,description),
          capacity=COALESCE($3,capacity), price=COALESCE($4,price),
-         is_active=COALESCE($5,is_active)
-       WHERE id=$6 RETURNING *`,
-      [name, description, capacity, price, is_active, req.params.slotId],
+         duration=COALESCE($5,duration), is_active=COALESCE($6,is_active)
+       WHERE id=$7 RETURNING *`,
+      [name, description, capacity, price, duration, is_active, req.params.slotId],
     );
     res.json(rows[0]);
   } catch (err) {

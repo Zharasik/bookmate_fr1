@@ -41,14 +41,15 @@ export const api = {
   getVenuePhotos: (id: string) => request<any[]>(`/api/venues/${id}/photos`),
   getVenueSlots: (id: string) => request<any[]>(`/api/venues/${id}/slots`),
   getCategories: () => request<string[]>('/api/venues/meta/categories'),
-  getSlotAvailability: (venueId: string, date: string, time: string) =>
-    request<any[]>(`/api/bookings/availability/${venueId}?date=${date}&time=${time}`),
+  // Returns slots with booked_ranges: [{start, end}] for the given date
+  getSlotAvailability: (venueId: string, date: string) =>
+    request<any[]>(`/api/bookings/availability/${venueId}?date=${date}`),
 
   getBookings: (status?: string) => {
     const qs = status ? `?status=${status}` : '';
     return request<any[]>(`/api/bookings${qs}`);
   },
-  createBooking: (data: { venue_id: string; slot_id?: string; date: string; time: string; end_time?: string; guests: number; notes?: string }) =>
+  createBooking: (data: { venue_id: string; slot_id?: string; date: string; time: string; duration: number; guests: number; notes?: string }) =>
     request<any>('/api/bookings', { method: 'POST', body: JSON.stringify(data) }),
   cancelBooking: (id: string) => request<any>(`/api/bookings/${id}/cancel`, { method: 'PATCH' }),
 
