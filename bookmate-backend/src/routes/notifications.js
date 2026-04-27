@@ -10,8 +10,7 @@ router.get('/', auth, async (req, res) => {
     const { rows } = await pool.query(
       `SELECT * FROM notifications
        WHERE user_id = $1
-       ORDER BY created_at DESC
-       LIMIT 50`,
+       ORDER BY created_at DESC`,
       [req.userId]
     );
     res.json(rows);
