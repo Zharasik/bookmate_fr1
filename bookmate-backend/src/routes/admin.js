@@ -1,11 +1,14 @@
 const { Router } = require('express');
 const pool = require('../db/pool');
-const adminAuth = require('../middleware/adminAuth');
+const auth = require('../middleware/auth');
+const roleCheck = require('../middleware/roleCheck');
+const { USER_ROLES } = require('../utils/auth');
+const { validateRole } = require('../utils/validation');
 
 const router = Router();
 
 // All routes require admin
-router.use(adminAuth);
+router.use(auth, roleCheck(USER_ROLES.ADMIN));
 
 // ═══════════════════════════════════════════════════════
 // DASHBOARD STATS
@@ -341,10 +344,15 @@ router.get('/users', async (_req, res) => {
 
 router.patch('/users/:id/role', async (req, res) => {
   try {
-    const { role } = req.body;
+    const { role } = req.body || {};
+    const roleResult = validateRole(role, { required: true });
+    if (roleResult.error) {
+      return res.status(400).json({ error: roleResult.error });
+    }
+
     const { rows } = await pool.query(
       'UPDATE users SET role=$1 WHERE id=$2 RETURNING id, email, name, role',
-      [role, req.params.id]
+      [roleResult.value, req.params.id]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Не найдено' });
     res.json(rows[0]);

@@ -1,18 +1,21 @@
 const pool = require('./pool');
 require('dotenv').config();
+const { validateEmail, validatePassword } = require('../utils/validation');
 
 const SQL = `
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- ═══════════════════════════════════════════════════════
 -- USERS
 -- ═══════════════════════════════════════════════════════
 CREATE TABLE IF NOT EXISTS users (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email         TEXT UNIQUE NOT NULL,
+  email         TEXT NOT NULL,
+  phone         TEXT,
   password_hash TEXT NOT NULL,
   name          TEXT NOT NULL DEFAULT '',
   avatar_url    TEXT,
-  phone         TEXT,
-  role          TEXT DEFAULT 'user' CHECK (role IN ('user','admin')),
+  role          TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user','business','admin')),
   created_at    TIMESTAMPTZ DEFAULT now()
 );
 
@@ -143,11 +146,18 @@ CREATE TABLE IF NOT EXISTS promotions (
   created_at  TIMESTAMPTZ DEFAULT now()
 );
 
--- Add role column to existing users if not present
-DO $$ BEGIN
-  ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';
-EXCEPTION WHEN OTHERS THEN NULL;
-END $$;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';
+ALTER TABLE users ALTER COLUMN email SET NOT NULL;
+ALTER TABLE users ALTER COLUMN password_hash SET NOT NULL;
+ALTER TABLE users ALTER COLUMN role SET DEFAULT 'user';
+UPDATE users SET email = lower(trim(email)) WHERE email IS NOT NULL;
+UPDATE users SET phone = NULL WHERE phone IS NOT NULL AND btrim(phone) = '';
+UPDATE users SET role = 'user' WHERE role IS NULL OR role NOT IN ('user','business','admin');
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('user','business','admin'));
+CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique_idx ON users ((lower(email)));
+CREATE UNIQUE INDEX IF NOT EXISTS users_phone_unique_idx ON users (phone) WHERE phone IS NOT NULL;
 
 -- Add new columns to venues if migrating
 DO $$ BEGIN
@@ -188,16 +198,32 @@ async function init() {
       console.log('Venues already present — skipping seed.');
     }
 
-    // Create default admin if no admins exist
-    const admins = await client.query("SELECT count(*) FROM users WHERE role='admin'");
-    if (Number(admins.rows[0].count) === 0) {
+    // Optionally bootstrap an admin from environment variables
+    const bootstrapEmailResult = validateEmail(process.env.ADMIN_BOOTSTRAP_EMAIL || '');
+    const bootstrapPasswordResult = validatePassword(process.env.ADMIN_BOOTSTRAP_PASSWORD || '');
+    if (process.env.ADMIN_BOOTSTRAP_EMAIL || process.env.ADMIN_BOOTSTRAP_PASSWORD) {
+      if (bootstrapEmailResult.error || bootstrapPasswordResult.error) {
+        throw new Error(
+          `Invalid bootstrap admin configuration: ${
+            bootstrapEmailResult.error || bootstrapPasswordResult.error
+          }`
+        );
+      }
+
       const bcrypt = require('bcrypt');
-      const hash = await bcrypt.hash('admin123', 10);
+      const hash = await bcrypt.hash(process.env.ADMIN_BOOTSTRAP_PASSWORD, 10);
       await client.query(
-        `INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, 'admin') ON CONFLICT (email) DO UPDATE SET role='admin'`,
-        ['admin@bookmate.kz', hash, 'Admin']
+        `INSERT INTO users (email, password_hash, name, role)
+         VALUES ($1, $2, $3, 'admin')
+         ON CONFLICT ((lower(email)))
+         DO UPDATE SET
+           password_hash = EXCLUDED.password_hash,
+           role = 'admin'`,
+        [bootstrapEmailResult.value, hash, 'Admin']
       );
-      console.log('Default admin created: admin@bookmate.kz / admin123');
+      console.log(`Bootstrap admin ensured for ${bootstrapEmailResult.value}`);
+    } else {
+      console.log('Bootstrap admin skipped: ADMIN_BOOTSTRAP_EMAIL/ADMIN_BOOTSTRAP_PASSWORD are not set.');
     }
 
     console.log('Database initialised successfully!');

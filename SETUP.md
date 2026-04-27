@@ -19,9 +19,12 @@ npm install
 - Отредактируйте `DATABASE_URL` под вашу БД:
   - Локально: `postgresql://postgres:password@localhost:5432/bookmate_db`
   - Облако (Neon): `postgresql://user:pass@project.neon.tech/bookmate_db?sslmode=require`
+- Обязательно задайте `JWT_SECRET` длиннее 32 символов
+- При необходимости bootstrap-админа можно задать через `ADMIN_BOOTSTRAP_EMAIL` и `ADMIN_BOOTSTRAP_PASSWORD`
 
 **Запуск:**
 ```bash
+npm run db:init
 npm start
 ```
 Server запустится на `http://localhost:3000`
