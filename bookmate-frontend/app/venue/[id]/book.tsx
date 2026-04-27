@@ -42,14 +42,23 @@ function isPastTime(t: string, isToday: boolean): boolean {
   return h < now.getHours() || (h === now.getHours() && m <= now.getMinutes());
 }
 
+// For overnight venues (close < open), times after midnight have raw minutes < openMin.
+// Normalize them to be in the correct position on the 24h+ scale.
+function normalizeOvernight(rawMin: number, openMin: number, overnight: boolean): number {
+  if (!overnight) return rawMin;
+  return rawMin < openMin ? rawMin + 24 * 60 : rawMin;
+}
+
 function hasOverlap(
   startMin: number,
   endMin: number,
   ranges: { start: string; end: string }[],
+  openMin = 0,
+  overnight = false,
 ): boolean {
   return ranges.some((r) => {
-    const rs = timeToMin(r.start);
-    const re = timeToMin(r.end);
+    const rs = normalizeOvernight(timeToMin(r.start), openMin, overnight);
+    const re = normalizeOvernight(timeToMin(r.end), openMin, overnight);
     return startMin < re && rs < endMin;
   });
 }
@@ -169,32 +178,37 @@ export default function BookScreen() {
 
   const isToday = selectedDateIdx === 0;
 
+  // Overnight helpers (e.g. open 10:00, close 02:00)
+  const openMin = timeToMin(openTime);
+  const rawCloseMin = timeToMin(closeTime);
+  const isOvernight = rawCloseMin <= openMin;
+  const adjustedCloseMin = isOvernight ? rawCloseMin + 24 * 60 : rawCloseMin;
+
+  function toAdj(t: string): number {
+    return normalizeOvernight(timeToMin(t), openMin, isOvernight);
+  }
+
   function isTimeTaken(startTime: string): boolean {
     if (!selectedSlot) return false;
     const ranges: { start: string; end: string }[] = selectedSlot.booked_ranges ?? [];
-    const startMin = timeToMin(startTime);
-    const endMin = startMin + totalDuration;
-    return hasOverlap(startMin, endMin, ranges);
+    const startAdj = toAdj(startTime);
+    return hasOverlap(startAdj, startAdj + totalDuration, ranges, openMin, isOvernight);
   }
 
   function isTimeUnavailableDueToUnits(startTime: string): boolean {
-    // Would the booking overflow past close time?
-    const startMin = timeToMin(startTime);
-    const endMin = startMin + totalDuration;
-    let closeMin = timeToMin(closeTime);
-    if (closeMin <= timeToMin(openTime)) closeMin += 24 * 60;
-    return endMin > closeMin;
+    const startAdj = toAdj(startTime);
+    return (startAdj + totalDuration) > adjustedCloseMin;
   }
 
-  // Cross-venue conflict for user
+  // Cross-venue conflict for user (simple linear comparison, no overnight needed here)
   function userConflicts(): any[] {
     if (!selectedTime || !endTime) return [];
-    const startMin = timeToMin(selectedTime);
-    const endMin = timeToMin(endTime);
+    const startAdj = toAdj(selectedTime);
+    const endAdj = startAdj + totalDuration;
     return userBookings.filter((b) => {
       const bStart = timeToMin(b.time);
       const bEnd = b.end_time ? timeToMin(b.end_time) : bStart + 60;
-      return startMin < bEnd && bStart < endMin;
+      return startAdj < bEnd && bStart < endAdj;
     });
   }
 
@@ -338,9 +352,13 @@ export default function BookScreen() {
             </Text>
             <View style={styles.slotGrid}>
               {slotData.map((slot) => {
-                const allTaken = generateTimeGrid(openTime, closeTime, slot.duration || 60).every(
-                  (tm) => isPastTime(tm, isToday) || hasOverlap(timeToMin(tm), timeToMin(tm) + (slot.duration || 60), slot.booked_ranges ?? []),
-                );
+                const slotDur = slot.duration || 60;
+                const allTaken = generateTimeGrid(openTime, closeTime, slotDur).every((tm) => {
+                  if (isPastTime(tm, isToday)) return true;
+                  const startAdj = normalizeOvernight(timeToMin(tm), openMin, isOvernight);
+                  if ((startAdj + slotDur) > adjustedCloseMin) return true;
+                  return hasOverlap(startAdj, startAdj + slotDur, slot.booked_ranges ?? [], openMin, isOvernight);
+                });
                 const selected = selectedSlotId === slot.id;
                 return (
                   <Pressable
