@@ -4,14 +4,11 @@
     "slug": "bookmate",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
     "scheme": "bookmate",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
-      "image": "./assets/images/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#2563EB"
     },
     "ios": {
       "supportsTablet": false,
@@ -19,18 +16,11 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#2563EB"
       },
-      "package": "com.bookmate.app",
-      "permissions": [
-        "android.permission.RECORD_AUDIO",
-        "android.permission.RECORD_AUDIO"
-      ]
+      "package": "com.bookmate.app"
     },
-    "web": {
-      "favicon": "./assets/images/favicon.png"
-    },
+    "web": {},
     "plugins": [
       "expo-router",
       "expo-font",
@@ -46,11 +36,8 @@
         "projectId": "84e4bedd-700e-49a8-a29c-1ccc99c1229f"
       }
     },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
     "updates": {
-      "url": "https://u.expo.dev/84e4bedd-700e-49a8-a29c-1ccc99c1229f"
+      "enabled": false
     }
   }
 }

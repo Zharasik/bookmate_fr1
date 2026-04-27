@@ -1,117 +1,77 @@
-import { useState, useEffect } from 'react';
-import {
-  View, Text, StyleSheet, Pressable, Image, Platform, ScrollView, ActivityIndicator,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Star, ChevronRight, MapPin } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
-import { useTheme, useT } from '../../hooks/useHelpers';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useTheme } from '../../hooks/useHelpers';
 import { api } from '../../services/api';
 
-let MapView: any;
-let Marker: any;
-if (Platform.OS !== 'web') {
-  const Maps = require('react-native-maps');
-  MapView = Maps.default;
-  Marker = Maps.Marker;
-}
+type VenueMapItem = { id: string; name: string; category?: string; latitude: number; longitude: number };
 
 export default function MapScreen() {
   const c = useTheme();
-  const t = useT();
-  const router = useRouter();
-  const [venues, setVenues] = useState<any[]>([]);
-  const [selected, setSelected] = useState<any>(null);
+  const [venues, setVenues] = useState<VenueMapItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    api.getVenues().then((v) => { setVenues(v); if (v.length) setSelected(v[0]); }).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+  const normalizeVenues = (data: any[]): VenueMapItem[] =>
+    (data || []).map((v: any) => ({
+      id: String(v.id), name: String(v.name || ''),
+      category: v.category ? String(v.category) : '',
+      latitude: Number(v.latitude), longitude: Number(v.longitude),
+    })).filter((v) => Number.isFinite(v.latitude) && Number.isFinite(v.longitude));
 
-  if (loading) return <View style={[styles.container, { backgroundColor: c.bg }]}><ActivityIndicator style={{ marginTop: 60 }} color={c.primary} size="large" /></View>;
+  const loadVenues = async () => {
+    setLoading(true); setError(null);
+    try { setVenues(normalizeVenues(await api.getVenues())); }
+    catch { setError('Failed to load venues'); }
+    finally { setLoading(false); }
+  };
 
-  // Web fallback
-  if (Platform.OS === 'web') {
-    return (
-      <View style={[styles.container, { backgroundColor: c.bg }]}>
-        <SafeAreaView style={styles.overlay} edges={['top']}>
-          <View style={[styles.header, { backgroundColor: c.card }]}>
-            <Text style={[styles.headerTitle, { color: c.text }]}>{t('discoverVenues')}</Text>
-          </View>
-        </SafeAreaView>
-        <ScrollView style={{ paddingTop: 80 }} contentContainerStyle={{ paddingBottom: 100 }}>
-          <View style={[styles.placeholder, { backgroundColor: c.card }]}>
-            <MapPin size={48} color={c.primary} />
-            <Text style={[styles.phTitle, { color: c.text }]}>{t('map')}</Text>
-          </View>
-          {venues.map((v) => (
-            <Pressable key={v.id} style={[styles.webCard, { backgroundColor: c.card, borderColor: selected?.id === v.id ? c.primary : 'transparent' }]} onPress={() => { setSelected(v); router.push(`/venue/${v.id}`); }}>
-              <Image source={{ uri: v.image_url }} style={styles.webImg} />
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={[styles.webName, { color: c.text }]}>{v.name}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Star size={14} color="#FBBF24" fill="#FBBF24" />
-                  <Text style={{ color: '#FBBF24', marginLeft: 4, fontWeight: '500' }}>{v.rating}</Text>
-                </View>
-              </View>
-              <ChevronRight size={20} color={c.textMuted} />
-            </Pressable>
-          ))}
-        </ScrollView>
-      </View>
-    );
-  }
+  useEffect(() => { loadVenues().catch(() => {}); }, []);
 
-  // Native map
+  const srcDoc = useMemo(() => {
+    const venueData = JSON.stringify(venues);
+    return `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>html,body,#map{height:100%;margin:0;padding:0}.venue-dot{width:18px;height:18px;border-radius:999px;background:#2563EB;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.28)}</style>
+</head><body><div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const venues=${venueData};
+const map=L.map('map').setView([43.238949,76.889709],12);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+const icon=L.divIcon({className:'',html:'<div class="venue-dot"></div>',iconSize:[18,18],iconAnchor:[9,9]});
+const bounds=[];
+venues.forEach(v=>{
+  const m=L.marker([v.latitude,v.longitude],{icon}).addTo(map);
+  m.bindPopup('<b>'+(v.name||'Venue')+'</b><br/>'+(v.category||''));
+  m.on('mouseover',()=>{m.openPopup();});
+  m.on('mouseout',()=>{m.closePopup();});
+  m.on('click',()=>{window.top.location.href='/venue/'+v.id;});
+  bounds.push([v.latitude,v.longitude]);
+});
+if(bounds.length>0)map.fitBounds(bounds,{padding:[30,30]});
+</script></body></html>`;
+  }, [venues]);
+
+  if (loading) return <View style={[styles.centered, { backgroundColor: c.bg }]}><ActivityIndicator size="large" color={c.primary} /></View>;
+  if (error) return (
+    <View style={[styles.centered, { backgroundColor: c.bg }]}>
+      <Text style={[styles.errorText, { color: c.text }]}>{error}</Text>
+      <Pressable style={[styles.retryBtn, { backgroundColor: c.primary }]} onPress={loadVenues}>
+        <Text style={{ color: '#fff', fontWeight: '700' }}>Retry</Text>
+      </Pressable>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
-      {MapView && (
-        <MapView
-          style={StyleSheet.absoluteFillObject}
-          initialRegion={{ latitude: 43.2389, longitude: 76.8897, latitudeDelta: 0.09, longitudeDelta: 0.04 }}
-        >
-          {venues.map((v) => (
-            <Marker key={v.id} coordinate={{ latitude: v.latitude, longitude: v.longitude }} onPress={() => setSelected(v)}>
-              <View style={[styles.marker, { backgroundColor: c.primary, transform: [{ scale: selected?.id === v.id ? 1.2 : 1 }] }]}>
-                <View style={styles.markerInner} />
-              </View>
-            </Marker>
-          ))}
-        </MapView>
-      )}
-      <SafeAreaView style={styles.overlay} edges={['top']}>
-        <View style={[styles.header, { backgroundColor: c.card }]}>
-          <Text style={[styles.headerTitle, { color: c.text }]}>{t('discoverVenues')}</Text>
-        </View>
-      </SafeAreaView>
-      {selected && (
-        <Pressable style={[styles.bottomCard, { backgroundColor: c.card }]} onPress={() => router.push(`/venue/${selected.id}`)}>
-          <Image source={{ uri: selected.image_url }} style={{ width: 60, height: 60, borderRadius: 12 }} />
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={[{ fontSize: 16, fontWeight: '600' }, { color: c.text }]}>{selected.name}</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-              <Star size={14} color="#FBBF24" fill="#FBBF24" />
-              <Text style={{ color: '#FBBF24', marginLeft: 4 }}>{selected.rating}</Text>
-            </View>
-          </View>
-          <ChevronRight size={20} color={c.textMuted} />
-        </Pressable>
-      )}
+      <iframe srcDoc={srcDoc} style={{ border: 0, width: '100%', height: '100%' } as any} title="BookMate Map" />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0 },
-  header: { marginHorizontal: 16, marginTop: 8, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, elevation: 3 },
-  headerTitle: { fontSize: 18, fontWeight: '600', textAlign: 'center' },
-  marker: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', elevation: 5 },
-  markerInner: { width: 16, height: 16, borderRadius: 8, backgroundColor: '#fff' },
-  bottomCard: { position: 'absolute', bottom: 24, left: 16, right: 16, borderRadius: 16, padding: 12, flexDirection: 'row', alignItems: 'center', elevation: 5 },
-  placeholder: { marginHorizontal: 16, marginTop: 16, paddingVertical: 60, borderRadius: 16, alignItems: 'center' },
-  phTitle: { fontSize: 20, fontWeight: '600', marginTop: 12 },
-  webCard: { marginHorizontal: 16, marginBottom: 12, borderRadius: 16, padding: 12, flexDirection: 'row', alignItems: 'center', borderWidth: 2, elevation: 2 },
-  webImg: { width: 60, height: 60, borderRadius: 12 },
-  webName: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  errorText: { fontSize: 15, fontWeight: '600' },
+  retryBtn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
 });

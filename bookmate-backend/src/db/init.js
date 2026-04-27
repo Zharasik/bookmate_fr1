@@ -1,21 +1,21 @@
 const pool = require('./pool');
 require('dotenv').config();
-const { validateEmail, validatePassword } = require('../utils/validation');
 
 const SQL = `
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
 -- ═══════════════════════════════════════════════════════
 -- USERS
 -- ═══════════════════════════════════════════════════════
 CREATE TABLE IF NOT EXISTS users (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email         TEXT NOT NULL,
-  phone         TEXT,
+  email         TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
   name          TEXT NOT NULL DEFAULT '',
   avatar_url    TEXT,
-  role          TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user','business','admin')),
+  phone         TEXT,
+  role          TEXT DEFAULT 'user' CHECK (role IN ('user','business_owner','admin')),
+  email_verified BOOLEAN DEFAULT false,
+  client_rating NUMERIC(3,2) DEFAULT 5.00,
+  rating_count  INTEGER DEFAULT 0,
   created_at    TIMESTAMPTZ DEFAULT now()
 );
 
@@ -49,11 +49,27 @@ CREATE TABLE IF NOT EXISTS bookings (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id    UUID REFERENCES users(id) ON DELETE CASCADE,
   venue_id   UUID REFERENCES venues(id) ON DELETE CASCADE,
+  slot_id    UUID,
   date       DATE NOT NULL,
   time       TEXT NOT NULL,
+  end_time   TEXT,
   guests     INTEGER DEFAULT 1,
-  status     TEXT DEFAULT 'upcoming' CHECK (status IN ('upcoming','completed','cancelled')),
+  total_price INTEGER DEFAULT 0,
+  status     TEXT DEFAULT 'pending' CHECK (status IN ('upcoming','pending','confirmed','completed','cancelled')),
+  notes      TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Slots table used by booking/business routes
+CREATE TABLE IF NOT EXISTS venue_slots (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  venue_id    UUID REFERENCES venues(id) ON DELETE CASCADE,
+  name        TEXT NOT NULL,
+  description TEXT,
+  capacity    INTEGER DEFAULT 1,
+  price       INTEGER DEFAULT 0,
+  is_active   BOOLEAN DEFAULT true,
+  created_at  TIMESTAMPTZ DEFAULT now()
 );
 
 -- ═══════════════════════════════════════════════════════
@@ -79,6 +95,29 @@ CREATE TABLE IF NOT EXISTS notifications (
   message    TEXT NOT NULL,
   read       BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Email verification codes for auth flow
+CREATE TABLE IF NOT EXISTS email_verifications (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    UUID REFERENCES users(id) ON DELETE CASCADE,
+  code       TEXT NOT NULL,
+  used       BOOLEAN DEFAULT false,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Pending registrations: user is created only after correct 6-digit code
+CREATE TABLE IF NOT EXISTS pending_registrations (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email         TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  name          TEXT NOT NULL,
+  phone         TEXT,
+  role          TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user','business_owner','admin')),
+  code          TEXT NOT NULL,
+  expires_at    TIMESTAMPTZ NOT NULL,
+  created_at    TIMESTAMPTZ DEFAULT now()
 );
 
 -- ═══════════════════════════════════════════════════════
@@ -146,18 +185,21 @@ CREATE TABLE IF NOT EXISTS promotions (
   created_at  TIMESTAMPTZ DEFAULT now()
 );
 
-ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;
-ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';
-ALTER TABLE users ALTER COLUMN email SET NOT NULL;
-ALTER TABLE users ALTER COLUMN password_hash SET NOT NULL;
-ALTER TABLE users ALTER COLUMN role SET DEFAULT 'user';
-UPDATE users SET email = lower(trim(email)) WHERE email IS NOT NULL;
-UPDATE users SET phone = NULL WHERE phone IS NOT NULL AND btrim(phone) = '';
-UPDATE users SET role = 'user' WHERE role IS NULL OR role NOT IN ('user','business','admin');
-ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
-ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('user','business','admin'));
-CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique_idx ON users ((lower(email)));
-CREATE UNIQUE INDEX IF NOT EXISTS users_phone_unique_idx ON users (phone) WHERE phone IS NOT NULL;
+-- Add role column to existing users if not present
+DO $$ BEGIN
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT false;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS client_rating NUMERIC(3,2) DEFAULT 5.00;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS rating_count INTEGER DEFAULT 0;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+-- Align users.role constraint with backend roles
+DO $$ BEGIN
+  ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+  ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('user','business_owner','admin'));
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 
 -- Add new columns to venues if migrating
 DO $$ BEGIN
@@ -165,6 +207,35 @@ DO $$ BEGIN
   ALTER TABLE venues ADD COLUMN IF NOT EXISTS close_time TEXT DEFAULT '02:00';
   ALTER TABLE venues ADD COLUMN IF NOT EXISTS phone TEXT;
   ALTER TABLE venues ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+-- Add bookings columns expected by routes
+DO $$ BEGIN
+  ALTER TABLE bookings ADD COLUMN IF NOT EXISTS slot_id UUID;
+  ALTER TABLE bookings ADD COLUMN IF NOT EXISTS end_time TEXT;
+  ALTER TABLE bookings ADD COLUMN IF NOT EXISTS total_price INTEGER DEFAULT 0;
+  ALTER TABLE bookings ADD COLUMN IF NOT EXISTS notes TEXT;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+-- Ensure FK from bookings to slots exists
+DO $$ BEGIN
+  ALTER TABLE bookings
+    ADD CONSTRAINT bookings_slot_id_fkey
+    FOREIGN KEY (slot_id) REFERENCES venue_slots(id) ON DELETE SET NULL;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+  WHEN OTHERS THEN NULL;
+END $$;
+
+-- Align bookings.status constraint/default with backend flow
+DO $$ BEGIN
+  ALTER TABLE bookings ALTER COLUMN status SET DEFAULT 'pending';
+  ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_status_check;
+  ALTER TABLE bookings
+    ADD CONSTRAINT bookings_status_check
+    CHECK (status IN ('upcoming','pending','confirmed','completed','cancelled'));
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 `;
@@ -198,32 +269,16 @@ async function init() {
       console.log('Venues already present — skipping seed.');
     }
 
-    // Optionally bootstrap an admin from environment variables
-    const bootstrapEmailResult = validateEmail(process.env.ADMIN_BOOTSTRAP_EMAIL || '');
-    const bootstrapPasswordResult = validatePassword(process.env.ADMIN_BOOTSTRAP_PASSWORD || '');
-    if (process.env.ADMIN_BOOTSTRAP_EMAIL || process.env.ADMIN_BOOTSTRAP_PASSWORD) {
-      if (bootstrapEmailResult.error || bootstrapPasswordResult.error) {
-        throw new Error(
-          `Invalid bootstrap admin configuration: ${
-            bootstrapEmailResult.error || bootstrapPasswordResult.error
-          }`
-        );
-      }
-
+    // Create default admin if no admins exist
+    const admins = await client.query("SELECT count(*) FROM users WHERE role='admin'");
+    if (Number(admins.rows[0].count) === 0) {
       const bcrypt = require('bcrypt');
-      const hash = await bcrypt.hash(process.env.ADMIN_BOOTSTRAP_PASSWORD, 10);
+      const hash = await bcrypt.hash('admin123', 10);
       await client.query(
-        `INSERT INTO users (email, password_hash, name, role)
-         VALUES ($1, $2, $3, 'admin')
-         ON CONFLICT ((lower(email)))
-         DO UPDATE SET
-           password_hash = EXCLUDED.password_hash,
-           role = 'admin'`,
-        [bootstrapEmailResult.value, hash, 'Admin']
+        `INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, 'admin') ON CONFLICT (email) DO UPDATE SET role='admin'`,
+        ['admin@bookmate.kz', hash, 'Admin']
       );
-      console.log(`Bootstrap admin ensured for ${bootstrapEmailResult.value}`);
-    } else {
-      console.log('Bootstrap admin skipped: ADMIN_BOOTSTRAP_EMAIL/ADMIN_BOOTSTRAP_PASSWORD are not set.');
+      console.log('Default admin created: admin@bookmate.kz / admin123');
     }
 
     console.log('Database initialised successfully!');
