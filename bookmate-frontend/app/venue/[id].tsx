@@ -261,6 +261,31 @@ export default function VenueDetailScreen() {
           <Text style={styles.bookBtnText}>{t('bookNow')}</Text>
         </Pressable>
       </View>
+
+      {/* Top bar — rendered LAST so it stays on top on Android */}
+      <View style={styles.topBar} pointerEvents="box-none">
+        <Pressable
+          style={[styles.circBtn, { backgroundColor: c.card }]}
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace('/(tabs)/' as any);
+            }
+          }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <ChevronLeft size={24} color={c.text} />
+        </Pressable>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Pressable style={[styles.circBtn, { backgroundColor: c.card }]} onPress={toggleFav}>
+            <Heart size={20} color={fav ? '#EF4444' : c.text} fill={fav ? '#EF4444' : 'none'} />
+          </Pressable>
+          <Pressable style={[styles.circBtn, { backgroundColor: c.card }]}>
+            <Share2 size={20} color={c.text} />
+          </Pressable>
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
