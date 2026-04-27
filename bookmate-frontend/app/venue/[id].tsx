@@ -1,10 +1,16 @@
 import { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, Image, ScrollView, Pressable, ActivityIndicator, Alert,
+  View, Text, StyleSheet, Image, ScrollView, Pressable,
+  ActivityIndicator, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ChevronLeft, Star, MapPin, Heart, Share2, Clock, Camera, Tag, Users, Wrench } from 'lucide-react-native';
+import {
+  ChevronLeft, Star, MapPin, Heart, Share2, Clock,
+  Camera, Tag, Users, Wrench,
+} from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme, useT } from '../../hooks/useHelpers';
 import { useStore } from '../../hooks/useStore';
@@ -15,6 +21,7 @@ export default function VenueDetailScreen() {
   const router = useRouter();
   const c = useTheme();
   const t = useT();
+  const dark = useStore((s) => s.dark);
   const token = useStore((s) => s.token);
 
   const [venue, setVenue] = useState<any>(null);
@@ -43,6 +50,7 @@ export default function VenueDetailScreen() {
   }, [id]);
 
   const toggleFav = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try { const res = await api.toggleFavorite(id!); setFav(res.favorited); } catch {}
   };
 
@@ -57,102 +65,117 @@ export default function VenueDetailScreen() {
     }
   };
 
-  if (loading) return <View style={[styles.container, { backgroundColor: c.bg }]}><ActivityIndicator style={{ marginTop: 100 }} color={c.primary} size="large" /></View>;
-  if (!venue) return <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]}><Text style={{ color: c.text, textAlign: 'center', marginTop: 100 }}>{t('venueNotFound')}</Text></SafeAreaView>;
+  const GRAD = dark
+    ? (['#7C3AED', '#6366F1'] as const)
+    : (['#6366F1', '#818CF8'] as const);
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { backgroundColor: c.bg }]}>
+        <ActivityIndicator style={{ marginTop: 100 }} color={c.primary} size="large" />
+      </View>
+    );
+  }
+
+  if (!venue) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]}>
+        <Text style={{ color: c.text, textAlign: 'center', marginTop: 100 }}>{t('venueNotFound')}</Text>
+      </SafeAreaView>
+    );
+  }
+
+  const goBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)/' as any);
+  };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]} edges={['top']}>
-      {/* Top bar */}
-      <View style={styles.topBar}>
-        <Pressable style={[styles.circBtn, { backgroundColor: c.card }]} onPress={() => router.back()}>
-          <ChevronLeft size={24} color={c.text} />
-        </Pressable>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          <Pressable style={[styles.circBtn, { backgroundColor: c.card }]} onPress={toggleFav}>
-            <Heart size={20} color={fav ? '#EF4444' : c.text} fill={fav ? '#EF4444' : 'none'} />
-          </Pressable>
-          <Pressable style={[styles.circBtn, { backgroundColor: c.card }]}>
-            <Share2 size={20} color={c.text} />
-          </Pressable>
+    <View style={[styles.container, { backgroundColor: c.bg }]}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 110 }}>
+
+        {/* Hero image with gradient overlay */}
+        <View style={styles.heroWrap}>
+          {venue.image_url
+            ? <Image source={{ uri: venue.image_url }} style={styles.heroImg} />
+            : (
+              <View style={[styles.heroImg, { backgroundColor: dark ? '#1A2540' : '#EEF2FF', alignItems: 'center', justifyContent: 'center' }]}>
+                <Text style={{ fontSize: 64 }}>🏢</Text>
+              </View>
+            )}
+          <LinearGradient
+            colors={['rgba(0,0,0,0.0)', 'rgba(0,0,0,0.55)']}
+            style={styles.heroGradient}
+          />
+          {/* Category pill on image */}
+          <View style={[styles.heroCatPill, { backgroundColor: dark ? 'rgba(129,140,248,0.82)' : 'rgba(99,102,241,0.88)' }]}>
+            <Text style={styles.heroCatText}>{venue.category}</Text>
+          </View>
         </View>
-      </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
-        <Image source={{ uri: venue.image_url }} style={styles.mainImg} />
-
-        {/* Info */}
-        <View style={[styles.infoBlock, { backgroundColor: c.card }]}>
-          <View style={styles.catRow}>
-            <View style={[styles.catBadge, { backgroundColor: c.primaryLight }]}>
-              <Text style={[styles.catText, { color: c.primary }]}>{venue.category}</Text>
+        {/* Info card */}
+        <View style={[styles.infoCard, { backgroundColor: c.card, borderColor: c.border }]}>
+          <View style={styles.infoRow}>
+            <Text style={[styles.price, { color: c.textSecondary }]}>{venue.price_range}</Text>
+            <View style={styles.ratingBadge}>
+              <Star size={13} color="#FCD34D" fill="#FCD34D" />
+              <Text style={[styles.ratingNum, { color: c.text }]}>{venue.rating}</Text>
+              <Text style={[styles.reviewCount, { color: c.textMuted }]}>({venue.review_count})</Text>
             </View>
-            <Text style={{ color: c.textSecondary }}>{venue.price_range}</Text>
           </View>
           <Text style={[styles.venueName, { color: c.text }]}>{venue.name}</Text>
-          <View style={styles.ratingRow}>
-            <View style={styles.ratingBadge}>
-              <Star size={14} color="#FBBF24" fill="#FBBF24" />
-              <Text style={styles.ratingNum}>{venue.rating}</Text>
-            </View>
-            <Text style={{ color: c.textSecondary, marginLeft: 8 }}>({venue.review_count} {t('reviewsCount')})</Text>
+          <View style={styles.metaItem}>
+            <MapPin size={16} color={c.textSecondary} />
+            <Text style={[styles.metaText, { color: c.textSecondary }]}>{venue.location}</Text>
           </View>
-          <View style={styles.locRow}>
-            <MapPin size={18} color={c.textSecondary} />
-            <Text style={{ color: c.textSecondary, marginLeft: 8 }}>{venue.location}</Text>
-          </View>
-          <View style={styles.locRow}>
-            <Clock size={18} color={c.success} />
-            <Text style={{ color: c.success, fontWeight: '500', marginLeft: 8 }}>{t('openNow')}</Text>
-            <Text style={{ color: c.textSecondary, marginLeft: 4 }}>• {venue.open_time || '10:00'} – {venue.close_time || '02:00'}</Text>
+          <View style={styles.metaItem}>
+            <Clock size={16} color={c.success} />
+            <Text style={[styles.metaText, { color: c.success, fontWeight: '600' }]}>{t('openNow')}</Text>
+            <Text style={[styles.metaText, { color: c.textSecondary }]}>
+              • {venue.open_time || '10:00'} – {venue.close_time || '02:00'}
+            </Text>
           </View>
           {venue.phone ? (
-            <View style={[styles.locRow, { marginTop: 4 }]}>
-              <Text style={{ color: c.textSecondary, fontSize: 15 }}>📞 {venue.phone}</Text>
+            <View style={styles.metaItem}>
+              <Text style={[styles.metaText, { color: c.textSecondary }]}>📞 {venue.phone}</Text>
             </View>
           ) : null}
         </View>
 
-        {/* Promotions / Offers */}
+        {/* Promotions */}
         {promos.length > 0 && (
-          <View style={[styles.section, { backgroundColor: c.card }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-              <Tag size={18} color={c.warning} />
-              <Text style={[styles.secTitle, { color: c.text, marginLeft: 8, marginBottom: 0 }]}>
-                {t('notifications') === 'Хабарламалар' ? 'Акциялар' : 'Акции'}
-              </Text>
-            </View>
+          <Section title="Акции" icon={<Tag size={17} color="#FCD34D" />} c={c} dark={dark}>
             {promos.map((p) => (
-              <View key={p.id} style={[styles.promoCard, { backgroundColor: c.bg, borderColor: c.warning }]}>
-                <View style={[styles.discountBadge, { backgroundColor: c.warning }]}>
-                  <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>-{p.discount}%</Text>
+              <View key={p.id} style={[styles.promoCard, {
+                backgroundColor: dark ? 'rgba(252,211,77,0.07)' : '#FFFBEB',
+                borderColor: dark ? 'rgba(252,211,77,0.22)' : '#FDE68A',
+              }]}>
+                <View style={[styles.discBadge, { backgroundColor: '#FCD34D' }]}>
+                  <Text style={styles.discText}>-{p.discount}%</Text>
                 </View>
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={[{ color: c.text, fontWeight: '600', fontSize: 15 }]}>{p.title}</Text>
+                <View style={{ flex: 1, marginLeft: 14 }}>
+                  <Text style={[{ color: c.text, fontWeight: '700', fontSize: 15 }]}>{p.title}</Text>
                   {p.description ? <Text style={{ color: c.textSecondary, fontSize: 13, marginTop: 2 }}>{p.description}</Text> : null}
                   {p.end_date ? <Text style={{ color: c.textMuted, fontSize: 12, marginTop: 4 }}>до {new Date(p.end_date).toLocaleDateString('ru-RU')}</Text> : null}
                 </View>
               </View>
             ))}
-          </View>
+          </Section>
         )}
 
         {/* About */}
-        <View style={[styles.section, { backgroundColor: c.card }]}>
-          <Text style={[styles.secTitle, { color: c.text }]}>{t('about')}</Text>
-          <Text style={{ color: c.textSecondary, lineHeight: 22 }}>{venue.description}</Text>
-        </View>
+        <Section title={t('about')} c={c} dark={dark}>
+          <Text style={{ color: c.textSecondary, lineHeight: 22, fontSize: 15 }}>{venue.description}</Text>
+        </Section>
 
         {/* Services */}
         {services.length > 0 && (
-          <View style={[styles.section, { backgroundColor: c.card }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-              <Wrench size={18} color={c.primary} />
-              <Text style={[styles.secTitle, { color: c.text, marginLeft: 8, marginBottom: 0 }]}>
-                {t('notifications') === 'Хабарламалар' ? 'Қызметтер' : 'Услуги'}
-              </Text>
-            </View>
-            {services.map((s) => (
-              <View key={s.id} style={[styles.serviceRow, { borderBottomColor: c.border }]}>
+          <Section title="Услуги" icon={<Wrench size={17} color={c.primary} />} c={c} dark={dark}>
+            {services.map((s, i) => (
+              <View key={s.id} style={[styles.serviceRow, {
+                borderBottomColor: c.border,
+                borderBottomWidth: i < services.length - 1 ? 1 : 0,
+              }]}>
                 <View style={{ flex: 1 }}>
                   <Text style={[{ color: c.text, fontWeight: '600', fontSize: 15 }]}>{s.name}</Text>
                   {s.description ? <Text style={{ color: c.textSecondary, fontSize: 13, marginTop: 2 }}>{s.description}</Text> : null}
@@ -163,164 +186,253 @@ export default function VenueDetailScreen() {
                 </View>
               </View>
             ))}
-          </View>
+          </Section>
         )}
 
-        {/* Masters / Staff */}
+        {/* Masters */}
         {masters.length > 0 && (
-          <View style={[styles.section, { backgroundColor: c.card }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-              <Users size={18} color={c.primary} />
-              <Text style={[styles.secTitle, { color: c.text, marginLeft: 8, marginBottom: 0 }]}>
-                {t('notifications') === 'Хабарламалар' ? 'Мамандар' : 'Мастера'}
-              </Text>
-            </View>
+          <Section title="Мастера" icon={<Users size={17} color={c.primary} />} c={c} dark={dark}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
               {masters.map((m) => (
-                <View key={m.id} style={[styles.masterCard, { backgroundColor: c.bg }]}>
-                  {m.avatar_url ? (
-                    <Image source={{ uri: m.avatar_url }} style={styles.masterAvatar} />
-                  ) : (
-                    <View style={[styles.masterAvatar, { backgroundColor: c.primaryLight, alignItems: 'center', justifyContent: 'center' }]}>
-                      <Text style={{ color: c.primary, fontWeight: '700', fontSize: 18 }}>{m.name[0]}</Text>
-                    </View>
-                  )}
-                  <Text style={[{ color: c.text, fontWeight: '600', fontSize: 14, marginTop: 8 }]} numberOfLines={1}>{m.name}</Text>
+                <View key={m.id} style={[styles.masterCard, {
+                  backgroundColor: dark ? 'rgba(255,255,255,0.04)' : '#F8FAFF',
+                  borderColor: c.border,
+                }]}>
+                  {m.avatar_url
+                    ? <Image source={{ uri: m.avatar_url }} style={styles.masterAvatar} />
+                    : (
+                      <View style={[styles.masterAvatar, { backgroundColor: c.primaryLight, alignItems: 'center', justifyContent: 'center' }]}>
+                        <Text style={{ color: c.primary, fontWeight: '700', fontSize: 20 }}>{m.name[0]}</Text>
+                      </View>
+                    )}
+                  <Text style={[{ color: c.text, fontWeight: '600', fontSize: 14, marginTop: 10 }]} numberOfLines={1}>{m.name}</Text>
                   {m.role ? <Text style={{ color: c.textMuted, fontSize: 12, marginTop: 2 }}>{m.role}</Text> : null}
                 </View>
               ))}
             </ScrollView>
-          </View>
+          </Section>
         )}
 
         {/* Amenities */}
-        <View style={[styles.section, { backgroundColor: c.card }]}>
-          <Text style={[styles.secTitle, { color: c.text }]}>{t('amenities')}</Text>
-          <View style={styles.amenGrid}>
-            {(venue.amenities || []).map((a: string, i: number) => (
-              <View key={i} style={[styles.amenBadge, { backgroundColor: c.bg }]}>
-                <Text style={{ color: c.text, fontWeight: '500', fontSize: 13 }}>{a}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
+        {(venue.amenities?.length ?? 0) > 0 && (
+          <Section title={t('amenities')} c={c} dark={dark}>
+            <View style={styles.amenGrid}>
+              {(venue.amenities || []).map((a: string, i: number) => (
+                <View key={i} style={[styles.amenBadge, {
+                  backgroundColor: dark ? 'rgba(255,255,255,0.06)' : '#F4F6FF',
+                  borderColor: c.border,
+                }]}>
+                  <Text style={{ color: c.text, fontWeight: '500', fontSize: 13 }}>{a}</Text>
+                </View>
+              ))}
+            </View>
+          </Section>
+        )}
 
         {/* Photos */}
         {photos.length > 0 && (
-          <View style={[styles.section, { backgroundColor: c.card }]}>
-            <Text style={[styles.secTitle, { color: c.text }]}>{t('photos')}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <Section title={t('photos')} c={c} dark={dark}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
               {photos.map((p) => (
                 <Image key={p.id} source={{ uri: p.url }} style={styles.photoThumb} />
               ))}
             </ScrollView>
-          </View>
+          </Section>
         )}
 
         {/* Add photo */}
-        <Pressable style={[styles.addPhotoBtn, { borderColor: c.primary }]} onPress={pickPhoto}>
+        <Pressable
+          style={({ pressed }) => [styles.addPhotoBtn, {
+            borderColor: c.primary,
+            backgroundColor: dark ? 'rgba(129,140,248,0.07)' : 'rgba(99,102,241,0.04)',
+            opacity: pressed ? 0.75 : 1,
+          }]}
+          onPress={pickPhoto}
+        >
           <Camera size={18} color={c.primary} />
           <Text style={{ color: c.primary, fontWeight: '600', marginLeft: 8 }}>{t('addPhoto')}</Text>
         </Pressable>
 
-        {/* Reviews preview */}
-        <View style={[styles.section, { backgroundColor: c.card }]}>
-          <View style={styles.secHeader}>
-            <Text style={[styles.secTitle, { color: c.text }]}>{t('reviews')}</Text>
+        {/* Reviews */}
+        <Section
+          title={t('reviews')}
+          rightEl={
             <Pressable onPress={() => router.push(`/venue/${id}/reviews`)}>
-              <Text style={{ color: c.primary, fontWeight: '500' }}>{t('seeAll')}</Text>
+              <Text style={{ color: c.primary, fontWeight: '600', fontSize: 14 }}>{t('seeAll')}</Text>
             </Pressable>
-          </View>
-          {reviews.map((r) => (
-            <View key={r.id} style={[styles.reviewCard, { borderBottomColor: c.border }]}>
-              {r.user_avatar ? (
-                <Image source={{ uri: r.user_avatar }} style={styles.revAvatar} />
-              ) : (
-                <View style={[styles.revAvatar, { backgroundColor: c.primaryLight, alignItems: 'center', justifyContent: 'center' }]}>
-                  <Text style={{ color: c.primary, fontWeight: '700' }}>{(r.user_name || '?')[0]}</Text>
+          }
+          c={c} dark={dark}
+        >
+          {reviews.length === 0
+            ? <Text style={{ color: c.textMuted, textAlign: 'center', paddingVertical: 12 }}>{t('noReviews')}</Text>
+            : reviews.map((r, i) => (
+              <View key={r.id} style={[styles.reviewCard, {
+                borderBottomColor: c.border,
+                borderBottomWidth: i < reviews.length - 1 ? 1 : 0,
+              }]}>
+                {r.user_avatar
+                  ? <Image source={{ uri: r.user_avatar }} style={styles.revAvatar} />
+                  : (
+                    <View style={[styles.revAvatar, { backgroundColor: c.primaryLight, alignItems: 'center', justifyContent: 'center' }]}>
+                      <Text style={{ color: c.primary, fontWeight: '700' }}>{(r.user_name || '?')[0]}</Text>
+                    </View>
+                  )}
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontWeight: '700', color: c.text, marginBottom: 4 }}>{r.user_name}</Text>
+                  <View style={{ flexDirection: 'row', marginBottom: 6, gap: 2 }}>
+                    {[...Array(5)].map((_, i) => (
+                      <Star key={i} size={12} color={i < r.rating ? '#FCD34D' : c.border} fill={i < r.rating ? '#FCD34D' : 'none'} />
+                    ))}
+                  </View>
+                  <Text style={{ color: c.textSecondary, fontSize: 14, lineHeight: 20 }} numberOfLines={2}>{r.comment}</Text>
                 </View>
-              )}
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontWeight: '600', color: c.text }}>{r.user_name}</Text>
-                <View style={{ flexDirection: 'row', marginVertical: 4 }}>
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} size={12} color={i < r.rating ? '#FBBF24' : c.border} fill={i < r.rating ? '#FBBF24' : 'none'} />
-                  ))}
-                </View>
-                <Text style={{ color: c.textSecondary, fontSize: 14 }} numberOfLines={2}>{r.comment}</Text>
               </View>
-            </View>
-          ))}
-          {reviews.length === 0 && <Text style={{ color: c.textMuted, textAlign: 'center', paddingVertical: 16 }}>{t('noReviews')}</Text>}
-        </View>
+            ))}
+        </Section>
       </ScrollView>
 
-      {/* Book button */}
-      <View style={[styles.footer, { backgroundColor: c.card, borderTopColor: c.border }]}>
-        <Pressable style={[styles.bookBtn, { backgroundColor: c.primary }]} onPress={() => router.push(`/venue/${id}/book`)}>
-          <Text style={styles.bookBtnText}>{t('bookNow')}</Text>
-        </Pressable>
-      </View>
-
-      {/* Top bar — rendered LAST so it stays on top on Android */}
+      {/* Floating top bar — rendered last for z-index */}
       <View style={styles.topBar} pointerEvents="box-none">
         <Pressable
-          style={[styles.circBtn, { backgroundColor: c.card }]}
-          onPress={() => {
-            if (router.canGoBack()) {
-              router.back();
-            } else {
-              router.replace('/(tabs)/' as any);
-            }
-          }}
+          style={({ pressed }) => [styles.circBtn, {
+            backgroundColor: dark ? 'rgba(15,23,41,0.85)' : 'rgba(255,255,255,0.90)',
+            borderColor: dark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)',
+            opacity: pressed ? 0.8 : 1,
+          }]}
+          onPress={goBack}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <ChevronLeft size={24} color={c.text} />
         </Pressable>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          <Pressable style={[styles.circBtn, { backgroundColor: c.card }]} onPress={toggleFav}>
-            <Heart size={20} color={fav ? '#EF4444' : c.text} fill={fav ? '#EF4444' : 'none'} />
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <Pressable
+            style={({ pressed }) => [styles.circBtn, {
+              backgroundColor: dark ? 'rgba(15,23,41,0.85)' : 'rgba(255,255,255,0.90)',
+              borderColor: dark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)',
+              opacity: pressed ? 0.8 : 1,
+            }]}
+            onPress={toggleFav}
+          >
+            <Heart size={20} color={fav ? '#F87171' : c.text} fill={fav ? '#F87171' : 'none'} />
           </Pressable>
-          <Pressable style={[styles.circBtn, { backgroundColor: c.card }]}>
+          <Pressable
+            style={({ pressed }) => [styles.circBtn, {
+              backgroundColor: dark ? 'rgba(15,23,41,0.85)' : 'rgba(255,255,255,0.90)',
+              borderColor: dark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)',
+              opacity: pressed ? 0.8 : 1,
+            }]}
+          >
             <Share2 size={20} color={c.text} />
           </Pressable>
         </View>
       </View>
-    </SafeAreaView>
+
+      {/* Book button */}
+      <View style={[styles.footer, {
+        backgroundColor: dark ? 'rgba(6,10,21,0.94)' : 'rgba(255,255,255,0.94)',
+        borderTopColor: c.border,
+      }]}>
+        <Pressable
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push(`/venue/${id}/book`); }}
+          style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.85 : 1 })}
+        >
+          <LinearGradient
+            colors={dark ? ['#7C3AED', '#6366F1'] : ['#6366F1', '#818CF8']}
+            style={styles.bookBtn}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+          >
+            <Text style={styles.bookBtnText}>{t('bookNow')}</Text>
+          </LinearGradient>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function Section({ title, icon, rightEl, children, c, dark }: any) {
+  return (
+    <View style={[styles.section, { backgroundColor: c.card, borderColor: c.border }]}>
+      <View style={styles.sectionHeader}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          {icon ?? null}
+          <Text style={[styles.sectionTitle, { color: c.text }]}>{title}</Text>
+        </View>
+        {rightEl ?? null}
+      </View>
+      {children}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  topBar: { position: 'absolute', top: 50, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, zIndex: 10 },
-  circBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', elevation: 3 },
-  mainImg: { width: '100%', height: 280 },
-  infoBlock: { padding: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, marginBottom: 12 },
-  catRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  catBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 },
-  catText: { fontSize: 12, fontWeight: '600' },
-  venueName: { fontSize: 24, fontWeight: '700', marginBottom: 12 },
-  ratingRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  ratingBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  ratingNum: { fontSize: 14, fontWeight: '600', color: '#92400E', marginLeft: 4 },
-  locRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  section: { padding: 20, marginHorizontal: 12, marginTop: 12, borderRadius: 16 },
-  secHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  secTitle: { fontSize: 18, fontWeight: '600', marginBottom: 12 },
+  heroWrap: { position: 'relative' },
+  heroImg: { width: '100%', height: 300 },
+  heroGradient: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 140 },
+  heroCatPill: {
+    position: 'absolute', bottom: 16, left: 16,
+    paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20,
+  },
+  heroCatText: { color: '#fff', fontSize: 12, fontWeight: '700', letterSpacing: 0.3 },
+  infoCard: {
+    marginHorizontal: 16, marginTop: -24, borderRadius: 24,
+    padding: 20, borderWidth: 1, zIndex: 5,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15, shadowRadius: 16, elevation: 8,
+  },
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  price: { fontSize: 13, fontWeight: '500' },
+  ratingBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  ratingNum: { fontSize: 14, fontWeight: '700' },
+  reviewCount: { fontSize: 13 },
+  venueName: { fontSize: 24, fontWeight: '800', marginBottom: 14, letterSpacing: -0.5 },
+  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  metaText: { fontSize: 14, flex: 1 },
+  section: {
+    marginHorizontal: 16, marginTop: 14, borderRadius: 20,
+    padding: 18, borderWidth: 1,
+  },
+  sectionHeader: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: 14,
+  },
+  sectionTitle: { fontSize: 17, fontWeight: '700', letterSpacing: -0.2 },
+  promoCard: {
+    flexDirection: 'row', alignItems: 'center', padding: 14,
+    borderRadius: 14, borderWidth: 1, marginBottom: 10,
+  },
+  discBadge: { width: 54, height: 54, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  discText: { color: '#000', fontWeight: '900', fontSize: 15 },
+  serviceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14 },
+  priceBadge: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12 },
+  masterCard: { width: 100, alignItems: 'center', padding: 12, borderRadius: 16, borderWidth: 1 },
+  masterAvatar: { width: 58, height: 58, borderRadius: 29 },
   amenGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  amenBadge: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
-  photoThumb: { width: 100, height: 100, borderRadius: 12, marginRight: 8 },
-  addPhotoBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: 12, paddingVertical: 14, marginHorizontal: 12, marginTop: 12 },
-  reviewCard: { flexDirection: 'row', paddingVertical: 12, borderBottomWidth: 1, gap: 12 },
-  revAvatar: { width: 40, height: 40, borderRadius: 20 },
-  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 24, borderTopWidth: 1 },
-  bookBtn: { paddingVertical: 16, borderRadius: 12, alignItems: 'center' },
-  bookBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  // New styles for services, masters, promos
-  promoCard: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 12, borderLeftWidth: 3, marginBottom: 10 },
-  discountBadge: { width: 52, height: 52, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  serviceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, borderBottomWidth: 1 },
-  priceBadge: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
-  masterCard: { width: 100, alignItems: 'center', padding: 12, borderRadius: 14 },
-  masterAvatar: { width: 56, height: 56, borderRadius: 28 },
+  amenBadge: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 22, borderWidth: 1 },
+  photoThumb: { width: 110, height: 110, borderRadius: 16 },
+  addPhotoBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderRadius: 16, paddingVertical: 14,
+    marginHorizontal: 16, marginTop: 14, borderStyle: 'dashed',
+  },
+  reviewCard: { flexDirection: 'row', paddingVertical: 14, gap: 12 },
+  revAvatar: { width: 42, height: 42, borderRadius: 21 },
+  topBar: {
+    position: 'absolute', top: 52, left: 0, right: 0,
+    flexDirection: 'row', justifyContent: 'space-between',
+    paddingHorizontal: 16, zIndex: 20,
+  },
+  circBtn: {
+    width: 42, height: 42, borderRadius: 21,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18, shadowRadius: 8, elevation: 4,
+  },
+  footer: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    paddingHorizontal: 20, paddingTop: 14, paddingBottom: 28, borderTopWidth: 1,
+  },
+  bookBtn: { height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  bookBtnText: { color: '#fff', fontSize: 17, fontWeight: '700', letterSpacing: 0.3 },
 });
