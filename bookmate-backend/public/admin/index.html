@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BookMate — Админ-панель</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0f1117;--surface:#1a1d27;--surface2:#252836;--border:#2e3144;
+  --text:#f0f0f5;--text2:#a0a3b1;--text3:#6b6e7d;
+  --accent:#6366f1;--accent2:#818cf8;--accent-bg:rgba(99,102,241,.12);
+  --green:#22c55e;--green-bg:rgba(34,197,94,.12);
+  --red:#ef4444;--red-bg:rgba(239,68,68,.12);
+  --orange:#f59e0b;--orange-bg:rgba(245,158,11,.12);
+  --radius:12px;--radius-sm:8px;
+}
+body{font-family:'Manrope',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+a{color:var(--accent2);text-decoration:none}
+
+/* ─── Login screen ──── */
+#login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+.login-box{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:40px;width:100%;max-width:400px;text-align:center}
+.login-box h1{font-size:28px;font-weight:800;margin-bottom:6px}
+.login-box p{color:var(--text2);margin-bottom:28px;font-size:14px}
+.login-box input{width:100%;height:48px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0 16px;color:var(--text);font-size:15px;margin-bottom:12px;font-family:inherit}
+.login-box input:focus{outline:none;border-color:var(--accent)}
+.login-box button{width:100%;height:48px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);font-size:15px;font-weight:700;cursor:pointer;margin-top:8px;font-family:inherit}
+.login-box button:hover{background:var(--accent2)}
+.login-err{color:var(--red);font-size:13px;margin-bottom:12px;min-height:18px}
+
+/* ─── App shell ──── */
+#app{display:none}
+.shell{display:flex;min-height:100vh}
+
+/* Sidebar */
+.sidebar{width:260px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100}
+.sidebar-logo{padding:24px;font-size:22px;font-weight:800;letter-spacing:-.5px;border-bottom:1px solid var(--border)}
+.sidebar-logo span{color:var(--accent)}
+.sidebar-nav{flex:1;padding:12px;display:flex;flex-direction:column;gap:2px}
+.nav-item{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:var(--radius-sm);cursor:pointer;font-size:14px;font-weight:500;color:var(--text2);transition:.15s}
+.nav-item:hover{background:var(--surface2);color:var(--text)}
+.nav-item.active{background:var(--accent-bg);color:var(--accent2);font-weight:600}
+.nav-item svg{width:20px;height:20px;flex-shrink:0}
+.sidebar-footer{padding:16px;border-top:1px solid var(--border)}
+.sidebar-footer .user-info{font-size:13px;color:var(--text2);margin-bottom:8px}
+.sidebar-footer .user-info strong{color:var(--text);display:block}
+.btn-logout{background:none;border:1px solid var(--border);color:var(--text2);border-radius:var(--radius-sm);padding:8px 16px;cursor:pointer;font-size:13px;font-family:inherit;width:100%}
+.btn-logout:hover{background:var(--red-bg);color:var(--red);border-color:var(--red)}
+
+/* Main */
+.main{flex:1;margin-left:260px;padding:32px}
+.page{display:none}
+.page.active{display:block}
+.page-title{font-size:26px;font-weight:800;margin-bottom:24px;letter-spacing:-.5px}
+
+/* Stats */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;margin-bottom:32px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+.stat-card .label{font-size:13px;color:var(--text3);margin-bottom:8px;font-weight:500}
+.stat-card .value{font-size:28px;font-weight:800}
+.stat-card.accent .value{color:var(--accent2)}
+.stat-card.green .value{color:var(--green)}
+.stat-card.orange .value{color:var(--orange)}
+
+/* Table */
+.table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.table-header{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border)}
+.table-header h3{font-size:16px;font-weight:700}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:12px 20px;font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);background:var(--surface2)}
+td{padding:14px 20px;font-size:14px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+.badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600}
+.badge-green{background:var(--green-bg);color:var(--green)}
+.badge-red{background:var(--red-bg);color:var(--red)}
+.badge-blue{background:var(--accent-bg);color:var(--accent2)}
+.badge-orange{background:var(--orange-bg);color:var(--orange)}
+.thumb{width:40px;height:40px;border-radius:var(--radius-sm);object-fit:cover}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;border:none;font-family:inherit;transition:.15s}
+.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:var(--accent2)}
+.btn-danger{background:var(--red-bg);color:var(--red)}.btn-danger:hover{background:var(--red);color:#fff}
+.btn-sm{padding:6px 10px;font-size:12px}
+.btn-outline{background:none;border:1px solid var(--border);color:var(--text2)}.btn-outline:hover{border-color:var(--accent);color:var(--accent)}
+.actions{display:flex;gap:6px}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:200;display:none}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;padding:28px}
+.modal h2{font-size:20px;font-weight:700;margin-bottom:20px}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:13px;font-weight:600;color:var(--text2);margin-bottom:6px}
+.form-group input,.form-group textarea,.form-group select{width:100%;height:44px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0 14px;color:var(--text);font-size:14px;font-family:inherit}
+.form-group textarea{height:80px;padding:12px 14px;resize:vertical}
+.form-group select{appearance:none;cursor:pointer}
+.form-group input:focus,.form-group textarea:focus,.form-group select:focus{outline:none;border-color:var(--accent)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.modal-footer{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
+.empty-msg{text-align:center;padding:40px;color:var(--text3);font-size:14px}
+
+/* Responsive */
+@media(max-width:768px){
+  .sidebar{display:none}
+  .main{margin-left:0}
+  .stats-grid{grid-template-columns:repeat(2,1fr)}
+  .form-row{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- ════════════ LOGIN ════════════ -->
+<div id="login-screen">
+  <div class="login-box">
+    <h1>BookMate</h1>
+    <p>Панель администратора</p>
+    <div class="login-err" id="login-error"></div>
+    <input type="email" id="login-email" placeholder="Email администратора">
+    <input type="password" id="login-password" placeholder="Пароль">
+    <button onclick="doLogin()">Войти</button>
+  </div>
+</div>
+
+<!-- ════════════ APP ════════════ -->
+<div id="app">
+<div class="shell">
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="sidebar-logo">Book<span>Mate</span></div>
+  <nav class="sidebar-nav">
+    <div class="nav-item active" data-page="dashboard" onclick="goTo('dashboard')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Дашборд
+    </div>
+    <div class="nav-item" data-page="venues" onclick="goTo('venues')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+      Заведения
+    </div>
+    <div class="nav-item" data-page="services" onclick="goTo('services')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      Услуги
+    </div>
+    <div class="nav-item" data-page="masters" onclick="goTo('masters')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+      Мастера / Персонал
+    </div>
+    <div class="nav-item" data-page="bookings" onclick="goTo('bookings')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Брони
+    </div>
+    <div class="nav-item" data-page="reviews" onclick="goTo('reviews')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      Отзывы
+    </div>
+    <div class="nav-item" data-page="promotions" onclick="goTo('promotions')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+      Акции
+    </div>
+    <div class="nav-item" data-page="photos" onclick="goTo('photos')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      Фото
+    </div>
+    <div class="nav-item" data-page="users" onclick="goTo('users')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      Пользователи
+    </div>
+    <div class="nav-item" data-page="notify" onclick="goTo('notify')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
+      Рассылка
+    </div>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-info"><strong id="admin-name"></strong><span id="admin-email"></span></div>
+    <button class="btn-logout" onclick="doLogout()">Выйти</button>
+  </div>
+</aside>
+
+<!-- Main content -->
+<main class="main" id="main-content"></main>
+
+</div>
+</div>
+
+<!-- ════════════ MODAL ════════════ -->
+<div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modal-body"></div>
+</div>
+
+<script>
+// ─── State ───────────────────────────────────────────
+let TOKEN = localStorage.getItem('admin_token') || '';
+let USER = JSON.parse(localStorage.getItem('admin_user') || 'null');
+let VENUES = [];
+const API = window.location.origin;
+
+// ─── Fetch wrapper ───────────────────────────────────
+async function apiFetch(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  if (TOKEN) headers['Authorization'] = 'Bearer ' + TOKEN;
+  const res = await fetch(API + path, { ...opts, headers });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Ошибка');
+  return data;
+}
+
+// ─── Auth ────────────────────────────────────────────
+async function doLogin() {
+  const email = document.getElementById('login-email').value;
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.textContent = '';
+  try {
+    const { token, user } = await apiFetch('/api/auth/login', {
+      method: 'POST', body: JSON.stringify({ email, password })
+    });
+    // Check if admin
+    TOKEN = token;
+    const me = await apiFetch('/api/admin/stats');
+    USER = user;
+    localStorage.setItem('admin_token', token);
+    localStorage.setItem('admin_user', JSON.stringify(user));
+    showApp();
+  } catch (e) {
+    TOKEN = '';
+    errEl.textContent = e.message.includes('403') ? 'Нет прав администратора. Попросите назначить вам роль admin.' : e.message;
+  }
+}
+
+function doLogout() {
+  TOKEN = ''; USER = null;
+  localStorage.removeItem('admin_token');
+  localStorage.removeItem('admin_user');
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('admin-name').textContent = USER?.name || 'Admin';
+  document.getElementById('admin-email').textContent = USER?.email || '';
+  goTo('dashboard');
+}
+
+// ─── Navigation ──────────────────────────────────────
+function goTo(page) {
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.page === page));
+  window['load_' + page]?.();
+}
+
+// ─── Modal ───────────────────────────────────────────
+function openModal(html) {
+  document.getElementById('modal-body').innerHTML = html;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+// ─── Helpers ─────────────────────────────────────────
+function venueOptions(selected) {
+  return VENUES.map(v => `<option value="${v.id}" ${v.id===selected?'selected':''}>${v.name}</option>`).join('');
+}
+function fmtDate(d) { return d ? new Date(d).toLocaleDateString('ru-RU') : '—'; }
+
+// ═══════════════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════════════
+async function load_dashboard() {
+  const m = document.getElementById('main-content');
+  m.innerHTML = '<h1 class="page-title">Дашборд</h1><div class="stats-grid" id="stats"></div><div class="table-wrap"><div class="table-header"><h3>Последние бронирования</h3></div><table><thead><tr><th>Пользователь</th><th>Заведение</th><th>Дата</th><th>Время</th><th>Статус</th></tr></thead><tbody id="recent-body"></tbody></table></div>';
+  try {
+    const s = await apiFetch('/api/admin/stats');
+    VENUES = await apiFetch('/api/admin/venues');
+    document.getElementById('stats').innerHTML = `
+      <div class="stat-card accent"><div class="label">Заведения</div><div class="value">${s.venues}</div></div>
+      <div class="stat-card green"><div class="label">Пользователи</div><div class="value">${s.users}</div></div>
+      <div class="stat-card orange"><div class="label">Бронирования</div><div class="value">${s.bookings}</div></div>
+      <div class="stat-card"><div class="label">Отзывы</div><div class="value">${s.reviews}</div></div>
+      <div class="stat-card accent"><div class="label">Услуги</div><div class="value">${s.services}</div></div>
+      <div class="stat-card green"><div class="label">Мастера</div><div class="value">${s.masters}</div></div>
+    `;
+    const statusBadge = st => st==='upcoming'?'badge-blue':st==='completed'?'badge-green':'badge-red';
+    document.getElementById('recent-body').innerHTML = s.recentBookings.map(b => `
+      <tr><td>${b.user_name} <span style="color:var(--text3)">(${b.user_email})</span></td><td>${b.venue_name}</td><td>${fmtDate(b.date)}</td><td>${b.time}</td><td><span class="badge ${statusBadge(b.status)}">${b.status}</span></td></tr>
+    `).join('') || '<tr><td colspan="5" class="empty-msg">Нет данных</td></tr>';
+  } catch(e) { m.innerHTML += `<p style="color:var(--red)">${e.message}</p>`; }
+}
+
+// ═══════════════════════════════════════════════════════
+// VENUES
+// ═══════════════════════════════════════════════════════
+async function load_venues() {
+  const m = document.getElementById('main-content');
+  m.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px"><h1 class="page-title" style="margin:0">Заведения</h1><button class="btn btn-primary" onclick="openVenueModal()">+ Добавить</button></div><div class="table-wrap"><table><thead><tr><th>Фото</th><th>Название</th><th>Категория</th><th>Локация</th><th>Рейтинг</th><th>Активно</th><th>Действия</th></tr></thead><tbody id="venues-body"></tbody></table></div>';
+  try {
+    VENUES = await apiFetch('/api/admin/venues');
+    document.getElementById('venues-body').innerHTML = VENUES.map(v => `
+      <tr>
+        <td>${v.image_url ? `<img class="thumb" src="${v.image_url}">` : '—'}</td>
+        <td><strong>${v.name}</strong></td>
+        <td><span class="badge badge-blue">${v.category}</span></td>
+        <td>${v.location}</td>
+        <td>⭐ ${v.rating}</td>
+        <td>${v.is_active!==false ? '<span class="badge badge-green">Да</span>' : '<span class="badge badge-red">Нет</span>'}</td>
+        <td class="actions">
+          <button class="btn btn-outline btn-sm" onclick='openVenueModal(${JSON.stringify(v).replace(/'/g,"&#39;")})'>✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteVenue('${v.id}')">🗑</button>
+        </td>
+      </tr>
+    `).join('') || '<tr><td colspan="7" class="empty-msg">Нет заведений</td></tr>';
+  } catch(e) { m.innerHTML += `<p style="color:var(--red)">${e.message}</p>`; }
+}
+
+function openVenueModal(v) {
+  const isEdit = !!v;
+  openModal(`
+    <h2>${isEdit ? 'Редактировать заведение' : 'Новое заведение'}</h2>
+    <div class="form-row">
+      <div class="form-group"><label>Название</label><input id="v-name" value="${v?.name||''}"></div>
+      <div class="form-group"><label>Категория</label><input id="v-cat" value="${v?.category||''}" placeholder="Billiards, Bowling, Gaming..."></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Локация</label><input id="v-loc" value="${v?.location||''}"></div>
+      <div class="form-group"><label>Ценовой диапазон</label><input id="v-price" value="${v?.price_range||'₸₸'}"></div>
+    </div>
+    <div class="form-group"><label>Описание</label><textarea id="v-desc">${v?.description||''}</textarea></div>
+    <div class="form-group"><label>URL фото</label><input id="v-img" value="${v?.image_url||''}" placeholder="https://images.unsplash.com/..."></div>
+    <div class="form-row">
+      <div class="form-group"><label>Широта</label><input id="v-lat" type="number" step="any" value="${v?.latitude||43.24}"></div>
+      <div class="form-group"><label>Долгота</label><input id="v-lng" type="number" step="any" value="${v?.longitude||76.89}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Открытие</label><input id="v-open" value="${v?.open_time||'10:00'}"></div>
+      <div class="form-group"><label>Закрытие</label><input id="v-close" value="${v?.close_time||'02:00'}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Телефон</label><input id="v-phone" value="${v?.phone||''}"></div>
+      <div class="form-group"><label>Удобства (через запятую)</label><input id="v-amen" value="${(v?.amenities||[]).join(', ')}"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="saveVenue('${v?.id||''}')">${isEdit ? 'Сохранить' : 'Создать'}</button>
+    </div>
+  `);
+}
+
+async function saveVenue(id) {
+  const data = {
+    name: document.getElementById('v-name').value,
+    category: document.getElementById('v-cat').value,
+    location: document.getElementById('v-loc').value,
+    price_range: document.getElementById('v-price').value,
+    description: document.getElementById('v-desc').value,
+    image_url: document.getElementById('v-img').value,
+    latitude: +document.getElementById('v-lat').value,
+    longitude: +document.getElementById('v-lng').value,
+    open_time: document.getElementById('v-open').value,
+    close_time: document.getElementById('v-close').value,
+    phone: document.getElementById('v-phone').value,
+    amenities: document.getElementById('v-amen').value.split(',').map(s=>s.trim()).filter(Boolean),
+  };
+  try {
+    if (id) await apiFetch('/api/admin/venues/' + id, { method: 'PUT', body: JSON.stringify(data) });
+    else await apiFetch('/api/admin/venues', { method: 'POST', body: JSON.stringify(data) });
+    closeModal(); load_venues();
+  } catch(e) { alert(e.message); }
+}
+
+async function deleteVenue(id) {
+  if (!confirm('Удалить заведение и все связанные данные?')) return;
+  try { await apiFetch('/api/admin/venues/' + id, { method: 'DELETE' }); load_venues(); } catch(e) { alert(e.message); }
+}
+
+// ═══════════════════════════════════════════════════════
+// SERVICES
+// ═══════════════════════════════════════════════════════
+async function load_services() {
+  const m = document.getElementById('main-content');
+  m.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px"><h1 class="page-title" style="margin:0">Услуги</h1><button class="btn btn-primary" onclick="openServiceModal()">+ Добавить</button></div><div class="table-wrap"><table><thead><tr><th>Заведение</th><th>Название</th><th>Цена (₸)</th><th>Длительность</th><th>Активна</th><th>Действия</th></tr></thead><tbody id="services-body"></tbody></table></div>';
+  try {
+    const list = await apiFetch('/api/admin/services');
+    document.getElementById('services-body').innerHTML = list.map(s => `
+      <tr>
+        <td>${s.venue_name}</td>
+        <td><strong>${s.name}</strong>${s.description?'<br><span style="color:var(--text3);font-size:12px">'+s.description+'</span>':''}</td>
+        <td>${s.price?.toLocaleString()} ₸</td>
+        <td>${s.duration} мин</td>
+        <td>${s.is_active?'<span class="badge badge-green">Да</span>':'<span class="badge badge-red">Нет</span>'}</td>
+        <td class="actions">
+          <button class="btn btn-outline btn-sm" onclick='openServiceModal(${JSON.stringify(s).replace(/'/g,"&#39;")})'>✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteService('${s.id}')">🗑</button>
+        </td>
+      </tr>
+    `).join('') || '<tr><td colspan="6" class="empty-msg">Нет услуг</td></tr>';
+  } catch(e) { m.innerHTML += `<p style="color:var(--red)">${e.message}</p>`; }
+}
+
+function openServiceModal(s) {
+  const isEdit = !!s;
+  openModal(`
+    <h2>${isEdit ? 'Редактировать услугу' : 'Новая услуга'}</h2>
+    <div class="form-group"><label>Заведение</label><select id="s-venue">${venueOptions(s?.venue_id)}</select></div>
+    <div class="form-group"><label>Название</label><input id="s-name" value="${s?.name||''}"></div>
+    <div class="form-group"><label>Описание</label><textarea id="s-desc">${s?.description||''}</textarea></div>
+    <div class="form-row">
+      <div class="form-group"><label>Цена (₸)</label><input id="s-price" type="number" value="${s?.price||0}"></div>
+      <div class="form-group"><label>Длительность (мин)</label><input id="s-dur" type="number" value="${s?.duration||60}"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="saveService('${s?.id||''}')">${isEdit?'Сохранить':'Создать'}</button>
+    </div>
+  `);
+}
+
+async function saveService(id) {
+  const data = { venue_id: document.getElementById('s-venue').value, name: document.getElementById('s-name').value, description: document.getElementById('s-desc').value, price: +document.getElementById('s-price').value, duration: +document.getElementById('s-dur').value };
+  try {
+    if (id) await apiFetch('/api/admin/services/' + id, { method: 'PUT', body: JSON.stringify(data) });
+    else await apiFetch('/api/admin/services', { method: 'POST', body: JSON.stringify(data) });
+    closeModal(); load_services();
+  } catch(e) { alert(e.message); }
+}
+
+async function deleteService(id) { if (!confirm('Удалить?')) return; try { await apiFetch('/api/admin/services/'+id,{method:'DELETE'}); load_services(); } catch(e){alert(e.message);} }
+
+// ═══════════════════════════════════════════════════════
+// MASTERS
+// ═══════════════════════════════════════════════════════
+async function load_masters() {
+  const m = document.getElementById('main-content');
+  m.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px"><h1 class="page-title" style="margin:0">Мастера / Персонал</h1><button class="btn btn-primary" onclick="openMasterModal()">+ Добавить</button></div><div class="table-wrap"><table><thead><tr><th>Фото</th><th>Имя</th><th>Роль</th><th>Заведение</th><th>Телефон</th><th>Действия</th></tr></thead><tbody id="masters-body"></tbody></table></div>';
+  try {
+    const list = await apiFetch('/api/admin/masters');
+    document.getElementById('masters-body').innerHTML = list.map(m => `
+      <tr>
+        <td>${m.avatar_url?`<img class="thumb" src="${m.avatar_url}">`:'👤'}</td>
+        <td><strong>${m.name}</strong>${m.bio?'<br><span style="color:var(--text3);font-size:12px">'+m.bio+'</span>':''}</td>
+        <td>${m.role||'—'}</td>
+        <td>${m.venue_name}</td>
+        <td>${m.phone||'—'}</td>
+        <td class="actions">
+          <button class="btn btn-outline btn-sm" onclick='openMasterModal(${JSON.stringify(m).replace(/'/g,"&#39;")})'>✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteMaster('${m.id}')">🗑</button>
+        </td>
+      </tr>
+    `).join('') || '<tr><td colspan="6" class="empty-msg">Нет мастеров</td></tr>';
+  } catch(e) { m.innerHTML += `<p style="color:var(--red)">${e.message}</p>`; }
+}
+
+function openMasterModal(m) {
+  const isEdit = !!m;
+  openModal(`
+    <h2>${isEdit?'Редактировать':'Новый мастер'}</h2>
+    <div class="form-group"><label>Заведение</label><select id="m-venue">${venueOptions(m?.venue_id)}</select></div>
+    <div class="form-row">
+      <div class="form-group"><label>Имя</label><input id="m-name" value="${m?.name||''}"></div>
+      <div class="form-group"><label>Роль / Должность</label><input id="m-role" value="${m?.role||''}" placeholder="Тренер, Мастер..."></div>
+    </div>
+    <div class="form-group"><label>Описание</label><textarea id="m-bio">${m?.bio||''}</textarea></div>
+    <div class="form-row">
+      <div class="form-group"><label>URL фото</label><input id="m-avatar" value="${m?.avatar_url||''}"></div>
+      <div class="form-group"><label>Телефон</label><input id="m-phone" value="${m?.phone||''}"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="saveMaster('${m?.id||''}')">${isEdit?'Сохранить':'Создать'}</button>
+    </div>
+  `);
+}
+
+async function saveMaster(id) {
+  const data = { venue_id: document.getElementById('m-venue').value, name: document.getElementById('m-name').value, role: document.getElementById('m-role').value, bio: document.getElementById('m-bio').value, avatar_url: document.getElementById('m-avatar').value, phone: document.getElementById('m-phone').value };
+  try {
+    if (id) await apiFetch('/api/admin/masters/'+id,{method:'PUT',body:JSON.stringify(data)});
+    else await apiFetch('/api/admin/masters',{method:'POST',body:JSON.stringify(data)});
+    closeModal(); load_masters();
+  } catch(e){alert(e.message);}
+}
+
+async function deleteMaster(id) { if(!confirm('Удалить?'))return; try{await apiFetch('/api/admin/masters/'+id,{method:'DELETE'});load_masters();}catch(e){alert(e.message);} }
+
+// ═══════════════════════════════════════════════════════
+// BOOKINGS
+// ═══════════════════════════════════════════════════════
+async function load_bookings() {
+  const m = document.getElementById('main-content');
+  m.innerHTML = '<h1 class="page-title">Бронирования</h1><div class="table-wrap"><table><thead><tr><th>Пользователь</th><th>Email</th><th>Заведение</th><th>Дата</th><th>Время</th><th>Гости</th><th>Статус</th><th>Действия</th></tr></thead><tbody id="bookings-body"></tbody></table></div>';
+  try {
+    const list = await apiFetch('/api/admin/bookings');
+    const sb = s => s==='upcoming'?'badge-blue':s==='completed'?'badge-green':'badge-red';
+    document.getElementById('bookings-body').innerHTML = list.map(b => `
+      <tr>
+        <td>${b.user_name}</td><td style="color:var(--text3)">${b.user_email}</td><td>${b.venue_name}</td>
+        <td>${fmtDate(b.date)}</td><td>${b.time}</td><td>${b.guests}</td>
+        <td><span class="badge ${sb(b.status)}">${b.status}</span></td>
+        <td class="actions">
+          ${b.status==='upcoming'?`
+            <button class="btn btn-sm badge-green" onclick="updateBooking('${b.id}','completed')">✓</button>
+            <button class="btn btn-danger btn-sm" onclick="updateBooking('${b.id}','cancelled')">✕</button>
+          `:'—'}
+        </td>
+      </tr>
+    `).join('') || '<tr><td colspan="8" class="empty-msg">Нет бронирований</td></tr>';
+  } catch(e){m.innerHTML+=`<p style="color:var(--red)">${e.message}</p>`;}
+}
+
+async function updateBooking(id, status) {
+  try { await apiFetch('/api/admin/bookings/'+id,{method:'PATCH',body:JSON.stringify({status})}); load_bookings(); } catch(e){alert(e.message);}
+}
+
+// ═══════════════════════════════════════════════════════
+// REVIEWS
+// ═══════════════════════════════════════════════════════
+async function load_reviews() {
+  const m = document.getElementById('main-content');
+  m.innerHTML = '<h1 class="page-title">Отзывы</h1><div class="table-wrap"><table><thead><tr><th>Пользователь</th><th>Заведение</th><th>Рейтинг</th><th>Комментарий</th><th>Дата</th><th>Действия</th></tr></thead><tbody id="reviews-body"></tbody></table></div>';
+  try {
+    const list = await apiFetch('/api/admin/reviews');
+    document.getElementById('reviews-body').innerHTML = list.map(r => `
+      <tr>
+        <td>${r.user_name}</td><td>${r.venue_name}</td>
+        <td>${'⭐'.repeat(r.rating)}</td>
+        <td style="max-width:300px">${r.comment||'—'}</td>
+        <td>${fmtDate(r.created_at)}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="deleteReview('${r.id}')">🗑</button></td>
+      </tr>
+    `).join('') || '<tr><td colspan="6" class="empty-msg">Нет отзывов</td></tr>';
+  } catch(e){m.innerHTML+=`<p style="color:var(--red)">${e.message}</p>`;}
+}
+
+async function deleteReview(id) { if(!confirm('Удалить отзыв?'))return; try{await apiFetch('/api/admin/reviews/'+id,{method:'DELETE'});load_reviews();}catch(e){alert(e.message);} }
+
+// ═══════════════════════════════════════════════════════
+// PROMOTIONS
+// ═══════════════════════════════════════════════════════
+async function load_promotions() {
+  const m = document.getElementById('main-content');
+  m.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px"><h1 class="page-title" style="margin:0">Акции</h1><button class="btn btn-primary" onclick="openPromoModal()">+ Создать акцию</button></div><div class="table-wrap"><table><thead><tr><th>Заведение</th><th>Название</th><th>Скидка</th><th>Период</th><th>Активна</th><th>Действия</th></tr></thead><tbody id="promos-body"></tbody></table></div>';
+  try {
+    const list = await apiFetch('/api/admin/promotions');
+    document.getElementById('promos-body').innerHTML = list.map(p => `
+      <tr>
+        <td>${p.venue_name}</td>
+        <td><strong>${p.title}</strong>${p.description?'<br><span style="color:var(--text3);font-size:12px">'+p.description+'</span>':''}</td>
+        <td><span class="badge badge-orange">${p.discount}%</span></td>
+        <td>${fmtDate(p.start_date)} — ${fmtDate(p.end_date)}</td>
+        <td>${p.is_active?'<span class="badge badge-green">Да</span>':'<span class="badge badge-red">Нет</span>'}</td>
+        <td class="actions">
+          <button class="btn btn-outline btn-sm" onclick='openPromoModal(${JSON.stringify(p).replace(/'/g,"&#39;")})'>✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deletePromo('${p.id}')">🗑</button>
+        </td>
+      </tr>
+    `).join('') || '<tr><td colspan="6" class="empty-msg">Нет акций</td></tr>';
+  } catch(e){m.innerHTML+=`<p style="color:var(--red)">${e.message}</p>`;}
+}
+
+function openPromoModal(p) {
+  const isEdit = !!p;
+  openModal(`
+    <h2>${isEdit?'Редактировать акцию':'Новая акция'}</h2>
+    <div class="form-group"><label>Заведение</label><select id="p-venue">${venueOptions(p?.venue_id)}</select></div>
+    <div class="form-group"><label>Название</label><input id="p-title" value="${p?.title||''}"></div>
+    <div class="form-group"><label>Описание</label><textarea id="p-desc">${p?.description||''}</textarea></div>
+    <div class="form-row">
+      <div class="form-group"><label>Скидка (%)</label><input id="p-discount" type="number" value="${p?.discount||10}"></div>
+      <div class="form-group"><label>Начало</label><input id="p-start" type="date" value="${p?.start_date?.split('T')[0]||''}"></div>
+    </div>
+    <div class="form-group"><label>Конец</label><input id="p-end" type="date" value="${p?.end_date?.split('T')[0]||''}"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="savePromo('${p?.id||''}')">${isEdit?'Сохранить':'Создать и уведомить всех'}</button>
+    </div>
+  `);
+}
+
+async function savePromo(id) {
+  const data = { venue_id:document.getElementById('p-venue').value, title:document.getElementById('p-title').value, description:document.getElementById('p-desc').value, discount:+document.getElementById('p-discount').value, start_date:document.getElementById('p-start').value||null, end_date:document.getElementById('p-end').value||null };
+  try {
+    if(id) await apiFetch('/api/admin/promotions/'+id,{method:'PUT',body:JSON.stringify(data)});
+    else await apiFetch('/api/admin/promotions',{method:'POST',body:JSON.stringify(data)});
+    closeModal(); load_promotions();
+  } catch(e){alert(e.message);}
+}
+
+async function deletePromo(id) { if(!confirm('Удалить?'))return; try{await apiFetch('/api/admin/promotions/'+id,{method:'DELETE'});load_promotions();}catch(e){alert(e.message);} }
+
+// ═══════════════════════════════════════════════════════
+// PHOTOS
+// ═══════════════════════════════════════════════════════
+async function load_photos() {
+  const m = document.getElementById('main-content');
+  m.innerHTML = '<h1 class="page-title">Фото заведений</h1><div id="photos-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px"></div>';
+  try {
+    const list = await apiFetch('/api/admin/photos');
+    document.getElementById('photos-grid').innerHTML = list.map(p => `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+        <img src="${p.url}" style="width:100%;height:150px;object-fit:cover">
+        <div style="padding:12px">
+          <div style="font-size:13px;color:var(--text2);margin-bottom:8px">${p.venue_name}</div>
+          <button class="btn btn-danger btn-sm" onclick="deletePhoto('${p.id}')">Удалить</button>
+        </div>
+      </div>
+    `).join('') || '<p class="empty-msg">Нет фото</p>';
+  } catch(e){m.innerHTML+=`<p style="color:var(--red)">${e.message}</p>`;}
+}
+
+async function deletePhoto(id) { if(!confirm('Удалить?'))return; try{await apiFetch('/api/admin/photos/'+id,{method:'DELETE'});load_photos();}catch(e){alert(e.message);} }
+
+// ═══════════════════════════════════════════════════════
+// USERS
+// ═══════════════════════════════════════════════════════
+async function load_users() {
+  const m = document.getElementById('main-content');
+  m.innerHTML = '<h1 class="page-title">Пользователи</h1><div class="table-wrap"><table><thead><tr><th>Имя</th><th>Email</th><th>Телефон</th><th>Роль</th><th>Регистрация</th><th>Действия</th></tr></thead><tbody id="users-body"></tbody></table></div>';
+  try {
+    const list = await apiFetch('/api/admin/users');
+    document.getElementById('users-body').innerHTML = list.map(u => `
+      <tr>
+        <td><strong>${u.name||'—'}</strong></td>
+        <td>${u.email}</td>
+        <td>${u.phone||'—'}</td>
+        <td><span class="badge ${u.role==='admin'?'badge-orange':'badge-blue'}">${u.role}</span></td>
+        <td>${fmtDate(u.created_at)}</td>
+        <td>
+          ${u.role==='user'?`<button class="btn btn-outline btn-sm" onclick="setRole('${u.id}','admin')">Сделать Admin</button>`
+          :`<button class="btn btn-outline btn-sm" onclick="setRole('${u.id}','user')">Убрать Admin</button>`}
+        </td>
+      </tr>
+    `).join('');
+  } catch(e){m.innerHTML+=`<p style="color:var(--red)">${e.message}</p>`;}
+}
+
+async function setRole(id, role) {
+  try { await apiFetch('/api/admin/users/'+id+'/role',{method:'PATCH',body:JSON.stringify({role})}); load_users(); } catch(e){alert(e.message);}
+}
+
+// ═══════════════════════════════════════════════════════
+// NOTIFY ALL
+// ═══════════════════════════════════════════════════════
+function load_notify() {
+  const m = document.getElementById('main-content');
+  m.innerHTML = `
+    <h1 class="page-title">Рассылка уведомлений</h1>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;max-width:600px">
+      <div class="form-group"><label>Тип</label><select id="n-type"><option value="offer">Акция</option><option value="booking">Бронирование</option><option value="venue">Заведение</option><option value="review">Отзыв</option></select></div>
+      <div class="form-group"><label>Заголовок</label><input id="n-title" placeholder="Новая акция!"></div>
+      <div class="form-group"><label>Сообщение</label><textarea id="n-msg" placeholder="Получите скидку 20% на боулинг..."></textarea></div>
+      <button class="btn btn-primary" onclick="sendNotify()">Отправить всем пользователям</button>
+      <div id="notify-result" style="margin-top:12px;font-size:14px"></div>
+    </div>
+  `;
+}
+
+async function sendNotify() {
+  const data = { type:document.getElementById('n-type').value, title:document.getElementById('n-title').value, message:document.getElementById('n-msg').value };
+  try {
+    const res = await apiFetch('/api/admin/notify-all',{method:'POST',body:JSON.stringify(data)});
+    document.getElementById('notify-result').innerHTML = `<span style="color:var(--green)">✓ Отправлено ${res.sent} пользователям</span>`;
+  } catch(e) { document.getElementById('notify-result').innerHTML = `<span style="color:var(--red)">${e.message}</span>`; }
+}
+
+// ─── Init ────────────────────────────────────────────
+(async function init() {
+  if (TOKEN) {
+    try {
+      await apiFetch('/api/admin/stats');
+      showApp();
+    } catch { doLogout(); }
+  }
+})();
+</script>
+</body>
+</html>
