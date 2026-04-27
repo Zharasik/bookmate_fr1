@@ -118,7 +118,7 @@ export default function VenueDetailScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
               <Tag size={18} color={c.warning} />
               <Text style={[styles.secTitle, { color: c.text, marginLeft: 8, marginBottom: 0 }]}>
-                {t('notifications') === 'Хабарламалар' ? 'Акциялар' : 'Акции'}
+                {t('promotions')}
               </Text>
             </View>
             {promos.map((p) => (
@@ -148,7 +148,7 @@ export default function VenueDetailScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
               <Wrench size={18} color={c.primary} />
               <Text style={[styles.secTitle, { color: c.text, marginLeft: 8, marginBottom: 0 }]}>
-                {t('notifications') === 'Хабарламалар' ? 'Қызметтер' : 'Услуги'}
+                {t('services')}
               </Text>
             </View>
             {services.map((s) => (
@@ -172,7 +172,7 @@ export default function VenueDetailScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
               <Users size={18} color={c.primary} />
               <Text style={[styles.secTitle, { color: c.text, marginLeft: 8, marginBottom: 0 }]}>
-                {t('notifications') === 'Хабарламалар' ? 'Мамандар' : 'Мастера'}
+                {t('masters')}
               </Text>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
