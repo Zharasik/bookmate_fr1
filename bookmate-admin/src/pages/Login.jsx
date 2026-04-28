@@ -14,13 +14,14 @@ export default function Login() {
     setError(''); setLoading(true);
     try {
       const res = await api.login(email, password);
-      if (res.user?.role !== 'admin') {
-        setError('Доступ только для администраторов.');
+      const role = res.user?.role;
+      if (role !== 'admin' && role !== 'business_owner') {
+        setError('Доступ только для администраторов и владельцев бизнеса.');
         return;
       }
       localStorage.setItem('admin_token', res.token);
       localStorage.setItem('admin_user', JSON.stringify(res.user));
-      navigate('/dashboard');
+      navigate(role === 'admin' ? '/admin/dashboard' : '/biz/dashboard');
     } catch (e) {
       setError(e.message);
     } finally {
@@ -32,25 +33,27 @@ export default function Login() {
     <div className="login-page">
       <div className="login-card">
         <div className="login-logo">
-          <h1>📅 BookMate</h1>
-          <p>Панель администратора</p>
+          <div className="logo-icon">📅</div>
+          <h1>BookMate</h1>
+          <p>Панель управления</p>
         </div>
         {error && <div className="error-msg">{error}</div>}
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label className="form-label">Email</label>
-            <input className="form-input" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+            <input className="form-input" type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus />
           </div>
           <div className="form-group">
             <label className="form-label">Пароль</label>
-            <input className="form-input" type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="admin123" />
+            <input className="form-input" type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••" />
           </div>
-          <button className="btn btn-primary" type="submit" disabled={loading} style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}>
+          <button className="btn btn-primary" type="submit" disabled={loading}
+            style={{ width: '100%', justifyContent: 'center', marginTop: 8, paddingTop: 12, paddingBottom: 12 }}>
             {loading ? 'Вход...' : 'Войти'}
           </button>
         </form>
-        <p style={{ textAlign: 'center', marginTop: 16, fontSize: 12, color: '#9ca3af' }}>
-          admin@bookmate.kz / admin123
+        <p style={{ textAlign: 'center', marginTop: 20, fontSize: 12, color: '#9ca3af' }}>
+          Для администраторов и владельцев бизнеса
         </p>
       </div>
     </div>
