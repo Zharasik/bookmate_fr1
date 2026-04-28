@@ -324,15 +324,47 @@ async function init() {
 
     // Create default admin if no admins exist
     const admins = await client.query("SELECT count(*) FROM users WHERE role='admin'");
+    const bcrypt = require('bcrypt');
     if (Number(admins.rows[0].count) === 0) {
-      const bcrypt = require('bcrypt');
       const hash = await bcrypt.hash('admin123', 10);
       await client.query(
-        `INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, 'admin') ON CONFLICT (email) DO UPDATE SET role='admin'`,
+        `INSERT INTO users (email, password_hash, name, role, email_verified)
+         VALUES ($1, $2, $3, 'admin', true)
+         ON CONFLICT (email) DO UPDATE SET role='admin', email_verified=true`,
         ['admin@bookmate.kz', hash, 'Admin']
       );
       console.log('Default admin created: admin@bookmate.kz / admin123');
     }
+
+    const bizHash = await bcrypt.hash('business123', 10);
+    const bizOwner = await client.query(
+      `INSERT INTO users (email, password_hash, name, role, phone, email_verified)
+       VALUES ($1, $2, $3, 'business_owner', $4, true)
+       ON CONFLICT (email)
+       DO UPDATE SET
+         role='business_owner',
+         email_verified=true,
+         name=EXCLUDED.name,
+         phone=EXCLUDED.phone
+       RETURNING id`,
+      ['owner@bookmate.kz', bizHash, 'Test Business Owner', '+7 700 555 0101']
+    );
+
+    await client.query(
+      `INSERT INTO venues (owner_id, name, category, location, city, description, phone, is_active)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,true)
+       ON CONFLICT DO NOTHING`,
+      [
+        bizOwner.rows[0].id,
+        'BookMate Test Lounge',
+        'Billiards',
+        'ул. Тестовая 1',
+        'Almaty',
+        'Тестовое заведение для входа в бизнес-панель',
+        '+7 700 555 0101',
+      ]
+    );
+    console.log('Default business owner ensured: owner@bookmate.kz / business123');
 
     console.log('Database initialised successfully!');
   } catch (err) {
