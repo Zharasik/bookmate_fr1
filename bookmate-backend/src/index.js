@@ -37,6 +37,7 @@ app.use('/api/masters', require('./routes/masters'));
 app.use('/api/promotions', require('./routes/promotions'));
 app.use('/api/business', require('./routes/business'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/applications', require('./routes/applications'));
 
 app.get('/', (_req, res) => {
   res.json({ status: 'ok', service: 'BookMate API', version: '2.0.0', time: new Date().toISOString() });

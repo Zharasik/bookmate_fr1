@@ -56,6 +56,9 @@ CREATE TABLE IF NOT EXISTS bookings (
   guests     INTEGER DEFAULT 1,
   total_price INTEGER DEFAULT 0,
   status     TEXT DEFAULT 'pending' CHECK (status IN ('upcoming','pending','confirmed','completed','cancelled')),
+  client_rated_at TIMESTAMPTZ,
+  client_rating_given INTEGER CHECK (client_rating_given BETWEEN 1 AND 5),
+  client_rating_comment TEXT,
   notes      TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
@@ -215,7 +218,18 @@ DO $$ BEGIN
   ALTER TABLE bookings ADD COLUMN IF NOT EXISTS slot_id UUID;
   ALTER TABLE bookings ADD COLUMN IF NOT EXISTS end_time TEXT;
   ALTER TABLE bookings ADD COLUMN IF NOT EXISTS total_price INTEGER DEFAULT 0;
+  ALTER TABLE bookings ADD COLUMN IF NOT EXISTS client_rated_at TIMESTAMPTZ;
+  ALTER TABLE bookings ADD COLUMN IF NOT EXISTS client_rating_given INTEGER;
+  ALTER TABLE bookings ADD COLUMN IF NOT EXISTS client_rating_comment TEXT;
   ALTER TABLE bookings ADD COLUMN IF NOT EXISTS notes TEXT;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_client_rating_given_check;
+  ALTER TABLE bookings
+    ADD CONSTRAINT bookings_client_rating_given_check
+    CHECK (client_rating_given IS NULL OR client_rating_given BETWEEN 1 AND 5);
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
@@ -244,6 +258,24 @@ DO $$ BEGIN
   ALTER TABLE venue_slots ADD COLUMN IF NOT EXISTS duration INTEGER DEFAULT 60;
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
+
+-- Business applications table
+CREATE TABLE IF NOT EXISTS business_applications (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       UUID REFERENCES users(id) ON DELETE CASCADE,
+  business_name TEXT NOT NULL,
+  category      TEXT NOT NULL,
+  location      TEXT NOT NULL,
+  description   TEXT,
+  phone         TEXT,
+  status        TEXT DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+  admin_note    TEXT,
+  created_at    TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS business_applications_one_active_per_user_idx
+  ON business_applications (user_id)
+  WHERE status IN ('pending', 'approved');
 
 -- Backfill end_time for existing bookings that don't have it (assume 60 min)
 DO $$ BEGIN
