@@ -24,9 +24,11 @@ CREATE TABLE IF NOT EXISTS users (
 -- ═══════════════════════════════════════════════════════
 CREATE TABLE IF NOT EXISTS venues (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_id    UUID REFERENCES users(id) ON DELETE SET NULL,
   name        TEXT NOT NULL,
   category    TEXT NOT NULL,
   location    TEXT NOT NULL,
+  city        TEXT,
   description TEXT,
   image_url   TEXT,
   price_range TEXT,
@@ -206,6 +208,8 @@ END $$;
 
 -- Add new columns to venues if migrating
 DO $$ BEGIN
+  ALTER TABLE venues ADD COLUMN IF NOT EXISTS owner_id UUID REFERENCES users(id) ON DELETE SET NULL;
+  ALTER TABLE venues ADD COLUMN IF NOT EXISTS city TEXT;
   ALTER TABLE venues ADD COLUMN IF NOT EXISTS open_time TEXT DEFAULT '10:00';
   ALTER TABLE venues ADD COLUMN IF NOT EXISTS close_time TEXT DEFAULT '02:00';
   ALTER TABLE venues ADD COLUMN IF NOT EXISTS phone TEXT;
