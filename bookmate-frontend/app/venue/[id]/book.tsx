@@ -150,7 +150,7 @@ export default function BookScreen() {
       );
       // If selected slot no longer exists or selected time is now taken, reset
       if (selectedSlotId) {
-        const slotStillExists = avail.find((s: any) => s.id === selectedSlotId);
+        const slotStillExists = avail.slots.find((s: any) => s.id === selectedSlotId);
         if (!slotStillExists) { setSelectedSlotId(null); setSelectedTime(null); }
       }
     } catch {
