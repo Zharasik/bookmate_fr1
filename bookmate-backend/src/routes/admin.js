@@ -275,8 +275,13 @@ router.delete('/photos/:id', async (req, res) => {
 router.get('/bookings', async (req, res) => {
   try {
     const { status, venue_id } = req.query;
-    let sql = `SELECT b.*, v.name AS venue_name, u.name AS user_name, u.email AS user_email
-               FROM bookings b JOIN venues v ON v.id=b.venue_id JOIN users u ON u.id=b.user_id WHERE 1=1`;
+    let sql = `SELECT b.*, v.name AS venue_name, u.name AS user_name, u.email AS user_email,
+                      vs.name AS slot_name
+               FROM bookings b
+               JOIN venues v ON v.id=b.venue_id
+               JOIN users u ON u.id=b.user_id
+               LEFT JOIN venue_slots vs ON vs.id=b.slot_id
+               WHERE 1=1`;
     const params = [];
     if (status) { params.push(status); sql += ` AND b.status=$${params.length}`; }
     if (venue_id) { params.push(venue_id); sql += ` AND b.venue_id=$${params.length}`; }
@@ -336,7 +341,9 @@ router.delete('/reviews/:id', async (req, res) => {
 router.get('/users', async (_req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT id, email, name, avatar_url, phone, role, created_at FROM users ORDER BY created_at DESC'
+      `SELECT id, email, name, avatar_url, phone, role, email_verified,
+              client_rating, rating_count, created_at
+       FROM users ORDER BY created_at DESC`
     );
     res.json(rows);
   } catch (err) { console.error(err); res.status(500).json({ error: 'Ошибка' }); }
@@ -345,17 +352,23 @@ router.get('/users', async (_req, res) => {
 router.patch('/users/:id/role', async (req, res) => {
   try {
     const { role } = req.body || {};
-    const roleResult = validateRole(role, { required: true });
-    if (roleResult.error) {
-      return res.status(400).json({ error: roleResult.error });
+    const allowed = ['user', 'business_owner', 'admin'];
+    if (!allowed.includes(role)) {
+      return res.status(400).json({ error: 'Недопустимая роль. Допустимо: user, business_owner, admin' });
     }
-
     const { rows } = await pool.query(
       'UPDATE users SET role=$1 WHERE id=$2 RETURNING id, email, name, role',
-      [roleResult.value, req.params.id]
+      [role, req.params.id]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Не найдено' });
     res.json(rows[0]);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Ошибка' }); }
+});
+
+router.delete('/users/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM users WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Ошибка' }); }
 });
 
