@@ -1,8 +1,6 @@
 const API_URL = 'http://localhost:3000';
 
-function getToken() {
-  return localStorage.getItem('admin_token');
-}
+function getToken() { return localStorage.getItem('admin_token'); }
 
 async function request(path, opts = {}) {
   const token = getToken();
@@ -20,21 +18,18 @@ export const api = {
   login: (email, password) =>
     request('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
 
-  // Stats
+  // ── Admin ─────────────────────────────────────────
   getStats: () => request('/api/admin/stats'),
 
-  // Venues
   getVenues: () => request('/api/admin/venues'),
   createVenue: (data) => request('/api/admin/venues', { method: 'POST', body: JSON.stringify(data) }),
   updateVenue: (id, data) => request(`/api/admin/venues/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteVenue: (id) => request(`/api/admin/venues/${id}`, { method: 'DELETE' }),
 
-  // Users
   getUsers: () => request('/api/admin/users'),
-  updateUser: (id, data) => request(`/api/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify(data) }),
+  updateUserRole: (id, role) => request(`/api/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
   deleteUser: (id) => request(`/api/admin/users/${id}`, { method: 'DELETE' }),
 
-  // Bookings
   getBookings: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
     return request(`/api/admin/bookings${qs ? '?' + qs : ''}`);
@@ -42,9 +37,37 @@ export const api = {
   updateBookingStatus: (id, status) =>
     request(`/api/admin/bookings/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
 
-  // Services
   getServices: (venue_id) => request(`/api/admin/services${venue_id ? '?venue_id=' + venue_id : ''}`),
   createService: (data) => request('/api/admin/services', { method: 'POST', body: JSON.stringify(data) }),
   updateService: (id, data) => request(`/api/admin/services/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteService: (id) => request(`/api/admin/services/${id}`, { method: 'DELETE' }),
+
+  getReviews: () => request('/api/admin/reviews'),
+  deleteReview: (id) => request(`/api/admin/reviews/${id}`, { method: 'DELETE' }),
+
+  getApplications: () => request('/api/admin/applications'),
+  processApplication: (id, status, admin_note) =>
+    request(`/api/admin/applications/${id}`, { method: 'PATCH', body: JSON.stringify({ status, admin_note }) }),
+
+  // ── Business ──────────────────────────────────────
+  biz: {
+    getStats: () => request('/api/business/stats'),
+    getVenues: () => request('/api/business/venues'),
+    createVenue: (data) => request('/api/business/venues', { method: 'POST', body: JSON.stringify(data) }),
+    updateVenue: (id, data) => request(`/api/business/venues/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    getSlots: (venueId) => request(`/api/business/venues/${venueId}/slots`),
+    createSlot: (venueId, data) => request(`/api/business/venues/${venueId}/slots`, { method: 'POST', body: JSON.stringify(data) }),
+    updateSlot: (slotId, data) => request(`/api/business/slots/${slotId}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteSlot: (slotId) => request(`/api/business/slots/${slotId}`, { method: 'DELETE' }),
+    getServices: (venueId) => request(`/api/business/venues/${venueId}/services`),
+    createService: (venueId, data) => request(`/api/business/venues/${venueId}/services`, { method: 'POST', body: JSON.stringify(data) }),
+    getBookings: (params = {}) => {
+      const qs = new URLSearchParams(params).toString();
+      return request(`/api/business/bookings${qs ? '?' + qs : ''}`);
+    },
+    confirmBooking: (id) => request(`/api/business/bookings/${id}/confirm`, { method: 'PATCH' }),
+    cancelBooking:  (id) => request(`/api/business/bookings/${id}/cancel`,  { method: 'PATCH' }),
+    completeBooking:(id) => request(`/api/business/bookings/${id}/complete`, { method: 'PATCH' }),
+    rateClient: (id, data) => request(`/api/business/bookings/${id}/rate-client`, { method: 'POST', body: JSON.stringify(data) }),
+  },
 };
