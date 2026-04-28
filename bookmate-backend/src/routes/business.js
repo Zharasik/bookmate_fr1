@@ -247,10 +247,12 @@ router.get("/bookings", async (req, res) => {
         b.*,
         v.name        AS venue_name,
         v.location    AS venue_location,
-        u.name        AS client_name,
-        u.email       AS client_email,
-        u.phone       AS client_phone,
-        u.avatar_url  AS client_avatar,
+        u.name         AS client_name,
+        u.email        AS client_email,
+        u.phone        AS client_phone,
+        u.avatar_url   AS client_avatar,
+        u.client_rating AS client_rating,
+        u.rating_count  AS client_rating_count,
         vs.name       AS slot_name
       FROM bookings b
       JOIN venues v ON v.id = b.venue_id
@@ -459,6 +461,15 @@ router.get("/stats", async (req, res) => {
       ),
     ]);
 
+    // Bookings by day for last 7 days
+    const weeklyChart = await pool.query(
+      `SELECT b.date::text AS day, COUNT(*) AS bookings, COALESCE(SUM(b.total_price),0) AS revenue
+       FROM bookings b JOIN venues v ON v.id=b.venue_id
+       WHERE v.owner_id=$1 AND b.date >= $2 AND b.status NOT IN ('cancelled')
+       GROUP BY b.date ORDER BY b.date`,
+      [req.userId, weekAgo],
+    );
+
     res.json({
       bookings_today: Number(bookingsToday.rows[0].count),
       bookings_week: Number(bookingsWeek.rows[0].count),
@@ -469,6 +480,7 @@ router.get("/stats", async (req, res) => {
       repeat_customers: Number(repeatCustomers.rows[0].repeat_count),
       avg_rating: Number(avgRating.rows[0]?.avg_rating || 0),
       total_reviews: Number(avgRating.rows[0]?.total_reviews || 0),
+      weekly_chart: weeklyChart.rows,
     });
   } catch (err) {
     console.error(err);
@@ -515,6 +527,89 @@ router.post("/venues/:venueId/services", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════
+// RATE CLIENT after completing a booking
+// ═══════════════════════════════════════════════════════
+router.post("/bookings/:id/rate-client", async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { rating, comment } = req.body;
+    if (!rating || rating < 1 || rating > 5)
+      return res.status(400).json({ error: "Оценка должна быть от 1 до 5" });
+
+    await client.query("BEGIN");
+
+    const bookingRes = await client.query(
+      `SELECT b.*, v.owner_id, v.name AS venue_name FROM bookings b
+       JOIN venues v ON v.id=b.venue_id
+       WHERE b.id=$1
+       FOR UPDATE`,
+      [req.params.id],
+    );
+    if (!bookingRes.rows[0]) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Бронь не найдена" });
+    }
+
+    const booking = bookingRes.rows[0];
+    if (booking.owner_id !== req.userId) {
+      await client.query("ROLLBACK");
+      return res.status(403).json({ error: "Нет доступа" });
+    }
+    if (booking.status !== "completed") {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Можно оценивать только завершённые брони" });
+    }
+    if (booking.client_rated_at) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ error: "Клиент по этой брони уже оценён" });
+    }
+
+    const userRes = await client.query(
+      "SELECT client_rating, rating_count FROM users WHERE id=$1 FOR UPDATE",
+      [booking.user_id],
+    );
+    if (!userRes.rows[0]) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Клиент не найден" });
+    }
+
+    const { client_rating, rating_count } = userRes.rows[0];
+    const newCount = rating_count + 1;
+    const newRating = ((client_rating * rating_count) + rating) / newCount;
+
+    await client.query(
+      "UPDATE users SET client_rating=$1, rating_count=$2 WHERE id=$3",
+      [Math.round(newRating * 100) / 100, newCount, booking.user_id],
+    );
+    const ratingUpdate = await client.query(
+      `UPDATE bookings
+       SET client_rated_at=now(), client_rating_given=$1, client_rating_comment=$2
+       WHERE id=$3 AND client_rated_at IS NULL`,
+      [rating, comment || null, booking.id],
+    );
+    if (ratingUpdate.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ error: "Клиент по этой брони уже оценён" });
+    }
+    await client.query("COMMIT");
+
+    const stars = "★".repeat(rating) + "☆".repeat(5 - rating);
+    pool.query(
+      `INSERT INTO notifications (user_id,type,title,message) VALUES ($1,'review','Вас оценили',$2)`,
+      [booking.user_id, `Заведение "${booking.venue_name}" оценило вас: ${stars}${comment ? ". " + comment : ""}`],
+    ).catch(console.error);
+
+    res.json({ success: true, new_rating: Math.round(newRating * 100) / 100 });
+  } catch (err) {
+    try { await client.query("ROLLBACK"); } catch {}
+    console.error("Rate client error:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  } finally {
+    client.release();
   }
 });
 
