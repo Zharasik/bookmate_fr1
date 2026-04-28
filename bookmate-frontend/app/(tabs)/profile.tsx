@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Switch, Alert, Image, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
-import { Heart, Settings, HelpCircle, LogOut, ChevronRight, Moon, Globe, Briefcase, Star, Camera } from 'lucide-react-native';
+import { Heart, Settings, HelpCircle, LogOut, ChevronRight, Moon, Globe, Briefcase, Star, Camera, Building2 } from 'lucide-react-native';
+import { Modal, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useStore } from '../../hooks/useStore';
 import { useTheme, useT } from '../../hooks/useHelpers';
@@ -19,6 +20,21 @@ export default function ProfileScreen() {
   const logout = useStore((s) => s.logout);
   const updateUser = useStore((s) => s.updateUser);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [applyModal, setApplyModal] = useState(false);
+  const [applyForm, setApplyForm] = useState({ business_name: '', category: '', location: '', description: '', phone: '' });
+  const [applyLoading, setApplyLoading] = useState(false);
+  const [myApplication, setMyApplication] = useState<any>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const me = await api.getMe();
+        if (alive && me) updateUser(me);
+      } catch {}
+    })();
+    return () => { alive = false; };
+  }, [updateUser]);
 
   const confirmLogout = (): Promise<boolean> => {
     if (Platform.OS === 'web') {
@@ -58,6 +74,34 @@ export default function ProfileScreen() {
   };
 
   const isBusiness = user?.role === 'business_owner' || user?.role === 'admin';
+  const isRegularUser = user?.role === 'user';
+
+  const openApply = async () => {
+    try {
+      const [app, me] = await Promise.all([
+        api.getMyApplication().catch(() => null),
+        api.getMe().catch(() => null),
+      ]);
+      setMyApplication(app);
+      if (me) updateUser(me);
+    } catch {}
+    setApplyModal(true);
+  };
+
+  const submitApplication = async () => {
+    if (!applyForm.business_name || !applyForm.category || !applyForm.location) {
+      Alert.alert('Ошибка', 'Заполните название, категорию и адрес'); return;
+    }
+    setApplyLoading(true);
+    try {
+      const app = await api.submitApplication(applyForm);
+      setMyApplication(app);
+      setApplyForm({ business_name: '', category: '', location: '', description: '', phone: '' });
+      Alert.alert('✓ Заявка отправлена', 'Ваша заявка отправлена на рассмотрение администратору. Мы уведомим вас о решении.');
+      setApplyModal(false);
+    } catch (e: any) { Alert.alert('Ошибка', e.message); }
+    finally { setApplyLoading(false); }
+  };
   const rating = user?.client_rating ?? 5.0;
 
   return (
@@ -96,6 +140,80 @@ export default function ProfileScreen() {
             </Pressable>
           </View>
         )}
+
+        {isRegularUser && (
+          <View style={[styles.section, { backgroundColor: c.card }]}>
+            <Text style={[styles.sectionLabel, { color: c.textMuted }]}>ДЛЯ БИЗНЕСА</Text>
+            <Pressable style={styles.row} onPress={openApply}>
+              <View style={[styles.rowIcon, { backgroundColor: '#2563EB20' }]}><Building2 size={20} color="#2563EB" /></View>
+              <Text style={[styles.rowLabel, { color: c.text }]}>Стать бизнес-партнёром</Text>
+              <ChevronRight size={18} color={c.textMuted} />
+            </Pressable>
+          </View>
+        )}
+
+        {/* Apply modal */}
+        <Modal visible={applyModal} transparent animationType="slide">
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+            <ScrollView style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}
+              contentContainerStyle={{ padding: 24, paddingBottom: 48 }}
+              keyboardShouldPersistTaps="handled">
+              <Text style={{ fontSize: 20, fontWeight: '800', color: c.text, marginBottom: 4 }}>Стать партнёром</Text>
+              <Text style={{ fontSize: 14, color: c.textSecondary, marginBottom: 20 }}>
+                Заполните заявку — администратор рассмотрит её и создаст ваше заведение.
+              </Text>
+              {myApplication?.status === 'pending' && (
+                <View style={{ backgroundColor: '#FEF3C7', borderRadius: 12, padding: 14, marginBottom: 16 }}>
+                  <Text style={{ color: '#92400E', fontWeight: '600' }}>⏳ Ваша заявка уже на рассмотрении</Text>
+                </View>
+              )}
+              {myApplication?.status === 'rejected' && (
+                <View style={{ backgroundColor: '#FEE2E2', borderRadius: 12, padding: 14, marginBottom: 16 }}>
+                  <Text style={{ color: '#991B1B', fontWeight: '600' }}>✕ Заявка отклонена{myApplication.admin_note ? ': ' + myApplication.admin_note : ''}</Text>
+                  <Text style={{ color: '#991B1B', fontSize: 12, marginTop: 4 }}>Вы можете подать новую заявку</Text>
+                </View>
+              )}
+              {myApplication?.status === 'approved' && (
+                <View style={{ backgroundColor: '#D1FAE5', borderRadius: 12, padding: 14, marginBottom: 16 }}>
+                  <Text style={{ color: '#065F46', fontWeight: '600' }}>✓ Заявка одобрена</Text>
+                  <Text style={{ color: '#065F46', fontSize: 12, marginTop: 4 }}>Профиль будет обновлён автоматически. Если бизнес-раздел уже доступен, заявку повторно отправлять не нужно.</Text>
+                </View>
+              )}
+              {[
+                { key: 'business_name', label: 'Название бизнеса *', placeholder: 'Бильярдный клуб Elite' },
+                { key: 'category', label: 'Категория *', placeholder: 'Billiards, Bowling, Gaming...' },
+                { key: 'location', label: 'Адрес *', placeholder: 'г. Алматы, ул. Абая 1' },
+                { key: 'phone', label: 'Телефон', placeholder: '+7 700 000 0000' },
+                { key: 'description', label: 'Описание', placeholder: 'Расскажите о вашем бизнесе...' },
+              ].map(f => (
+                <View key={f.key} style={{ marginBottom: 12 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: c.text, marginBottom: 6 }}>{f.label}</Text>
+                  <TextInput
+                    style={{ borderWidth: 1.5, borderColor: c.border, borderRadius: 12, padding: 12, fontSize: 14, color: c.text, backgroundColor: c.bg }}
+                    placeholder={f.placeholder} placeholderTextColor={c.textMuted}
+                    value={(applyForm as any)[f.key]}
+                    onChangeText={v => setApplyForm(p => ({ ...p, [f.key]: v }))}
+                    multiline={f.key === 'description'}
+                  />
+                </View>
+              ))}
+              <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
+                <Pressable style={{ flex: 1, padding: 16, borderRadius: 14, borderWidth: 1.5, borderColor: c.border, alignItems: 'center' }}
+                  onPress={() => setApplyModal(false)}>
+                  <Text style={{ fontWeight: '600', color: c.text }}>Отмена</Text>
+                </Pressable>
+                <Pressable style={{ flex: 1, padding: 16, borderRadius: 14, backgroundColor: c.primary, alignItems: 'center' }}
+                  onPress={submitApplication} disabled={applyLoading || myApplication?.status === 'pending' || myApplication?.status === 'approved'}>
+                  {applyLoading
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <Text style={{ fontWeight: '700', color: '#fff' }}>
+                        {myApplication?.status === 'pending' ? 'На рассмотрении' : myApplication?.status === 'approved' ? 'Уже одобрено' : 'Отправить заявку'}
+                      </Text>}
+                </Pressable>
+              </View>
+            </ScrollView>
+          </View>
+        </Modal>
 
         <View style={[styles.section, { backgroundColor: c.card }]}>
           <Text style={[styles.sectionLabel, { color: c.textMuted }]}>АККАУНТ</Text>

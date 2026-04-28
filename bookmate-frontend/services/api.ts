@@ -74,6 +74,11 @@ export const api = {
   getPromotions: (venueId?: string) =>
     venueId ? request<any[]>(`/api/promotions/venue/${venueId}`) : request<any[]>('/api/promotions'),
 
+  // Business applications
+  submitApplication: (data: { business_name: string; category: string; location: string; description?: string; phone?: string }) =>
+    request<any>('/api/applications', { method: 'POST', body: JSON.stringify(data) }),
+  getMyApplication: () => request<any>('/api/applications/my'),
+
   business: {
     getStats: () => request<any>('/api/business/stats'),
     getVenues: () => request<any[]>('/api/business/venues'),
@@ -90,6 +95,8 @@ export const api = {
     confirmBooking: (id: string) => request<any>(`/api/business/bookings/${id}/confirm`, { method: 'PATCH' }),
     cancelBooking: (id: string) => request<any>(`/api/business/bookings/${id}/cancel`, { method: 'PATCH' }),
     completeBooking: (id: string) => request<any>(`/api/business/bookings/${id}/complete`, { method: 'PATCH' }),
+    rateClient: (bookingId: string, data: { rating: number; comment?: string }) =>
+      request<any>(`/api/business/bookings/${bookingId}/rate-client`, { method: 'POST', body: JSON.stringify(data) }),
   },
 
   uploadVenuePhoto: async (venueId: string, uri: string) => {
