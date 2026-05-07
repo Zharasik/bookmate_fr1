@@ -18,7 +18,9 @@ import {
   XCircle,
   Clock,
   Check,
+  Star,
 } from "lucide-react-native";
+import { Modal, TextInput } from "react-native";
 import { useTheme } from "../../hooks/useHelpers";
 import { api } from "../../services/api";
 
@@ -70,6 +72,10 @@ export default function BusinessBookingsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [rateModal, setRateModal] = useState<any>(null); // booking to rate
+  const [rateValue, setRateValue] = useState(5);
+  const [rateComment, setRateComment] = useState('');
+  const [rateLoading, setRateLoading] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -105,12 +111,34 @@ export default function BusinessBookingsScreen() {
     try {
       if (action === "confirm") await api.business.confirmBooking(id);
       else if (action === "cancel") await api.business.cancelBooking(id);
-      else await api.business.completeBooking(id);
+      else {
+        await api.business.completeBooking(id);
+        // Offer to rate the client after completing
+        const booking = bookings.find(b => b.id === id);
+        if (booking) {
+          setRateValue(5); setRateComment('');
+          setRateModal(booking);
+        }
+      }
       await load();
     } catch (e: any) {
       Alert.alert("Ошибка", e.message);
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const submitRating = async () => {
+    if (!rateModal) return;
+    setRateLoading(true);
+    try {
+      await api.business.rateClient(rateModal.id, { rating: rateValue, comment: rateComment || undefined });
+      Alert.alert('✓ Оценка сохранена', `Клиент ${rateModal.client_name} получил оценку ${rateValue}/5`);
+      setRateModal(null);
+    } catch (e: any) {
+      Alert.alert('Ошибка', e.message);
+    } finally {
+      setRateLoading(false);
     }
   };
 
@@ -217,25 +245,36 @@ export default function BusinessBookingsScreen() {
 
                 {/* Client */}
                 <View style={[styles.clientRow, { backgroundColor: c.bg }]}>
-                  <View
-                    style={[
-                      styles.clientAvatar,
-                      { backgroundColor: c.primaryLight },
-                    ]}
-                  >
+                  <View style={[styles.clientAvatar, { backgroundColor: c.primaryLight }]}>
                     <Text style={{ color: c.primary, fontWeight: "700" }}>
                       {(b.client_name || "?")[0].toUpperCase()}
                     </Text>
                   </View>
-                  <View>
-                    <Text style={[styles.clientName, { color: c.text }]}>
-                      {b.client_name}
-                    </Text>
-                    <Text style={[styles.clientEmail, { color: c.textMuted }]}>
-                      {b.client_email}
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.clientName, { color: c.text }]}>{b.client_name}</Text>
+                    <Text style={[styles.clientEmail, { color: c.textMuted }]}>{b.client_email}</Text>
+                  </View>
+                  {b.client_rating != null && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3,
+                      backgroundColor: b.client_rating < 3 ? '#FEE2E2' : '#D1FAE5',
+                      paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
+                      <Star size={11} color={b.client_rating < 3 ? '#EF4444' : '#10B981'}
+                        fill={b.client_rating < 3 ? '#EF4444' : '#10B981'} />
+                      <Text style={{ fontSize: 12, fontWeight: '700',
+                        color: b.client_rating < 3 ? '#991B1B' : '#065F46' }}>
+                        {Number(b.client_rating).toFixed(1)}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                {b.client_rating != null && b.client_rating < 3 && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
+                    backgroundColor: '#FEF3C7', borderRadius: 8, padding: 8 }}>
+                    <Text style={{ fontSize: 12, color: '#92400E' }}>
+                      ⚠️ Низкий рейтинг клиента — будьте внимательны
                     </Text>
                   </View>
-                </View>
+                )}
 
                 {/* Date/time */}
                 <View style={styles.dtRow}>
@@ -354,6 +393,45 @@ export default function BusinessBookingsScreen() {
           )}
         </ScrollView>
       )}
+      {/* Rate client modal */}
+      <Modal visible={!!rateModal} transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          <View style={[styles.rateSheet, { backgroundColor: c.card }]}>
+            <Text style={[styles.rateTitle, { color: c.text }]}>Оценить клиента</Text>
+            <Text style={[styles.rateSubtitle, { color: c.textSecondary }]}>
+              {rateModal?.client_name}
+            </Text>
+            <View style={styles.starsRow}>
+              {[1,2,3,4,5].map(s => (
+                <Pressable key={s} onPress={() => setRateValue(s)}>
+                  <Star size={36} color={s <= rateValue ? '#F59E0B' : c.border}
+                    fill={s <= rateValue ? '#F59E0B' : 'none'} />
+                </Pressable>
+              ))}
+            </View>
+            <TextInput
+              style={[styles.rateInput, { backgroundColor: c.bg, borderColor: c.border, color: c.text }]}
+              placeholder="Комментарий (необязательно)..."
+              placeholderTextColor={c.textMuted}
+              value={rateComment}
+              onChangeText={setRateComment}
+              multiline
+            />
+            <View style={styles.rateBtns}>
+              <Pressable style={[styles.rateBtn, { backgroundColor: c.bg, borderColor: c.border, borderWidth: 1 }]}
+                onPress={() => setRateModal(null)}>
+                <Text style={{ color: c.text, fontWeight: '600' }}>Пропустить</Text>
+              </Pressable>
+              <Pressable style={[styles.rateBtn, { backgroundColor: c.primary }]}
+                onPress={submitRating} disabled={rateLoading}>
+                {rateLoading
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={{ color: '#fff', fontWeight: '700' }}>Сохранить оценку</Text>}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -427,4 +505,11 @@ const styles = StyleSheet.create({
   },
   actionTxt: { fontSize: 13, fontWeight: "600" },
   empty: { textAlign: "center", marginTop: 60, fontSize: 16 },
+  rateSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 28, paddingBottom: 40 },
+  rateTitle: { fontSize: 20, fontWeight: '800', textAlign: 'center', marginBottom: 4 },
+  rateSubtitle: { fontSize: 14, textAlign: 'center', marginBottom: 20 },
+  starsRow: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginBottom: 20 },
+  rateInput: { borderWidth: 1.5, borderRadius: 12, padding: 12, fontSize: 15, minHeight: 72, marginBottom: 20 },
+  rateBtns: { flexDirection: 'row', gap: 12 },
+  rateBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
 });

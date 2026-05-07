@@ -6,11 +6,11 @@ function roleCheck(...allowedRoles) {
   }
 
   return (req, res, next) => {
-    if (!req.user) {
+    if (!req.userId) {
       return res.status(401).json({ error: 'Пользователь не авторизован' });
     }
 
-    if (!normalizedRoles.includes(req.user.role)) {
+    if (!normalizedRoles.includes(req.userRole)) {
       return res.status(403).json({ error: 'Недостаточно прав для выполнения операции' });
     }
 

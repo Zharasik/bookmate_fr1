@@ -41,16 +41,20 @@ export const api = {
   getVenuePhotos: (id: string) => request<any[]>(`/api/venues/${id}/photos`),
   getVenueSlots: (id: string) => request<any[]>(`/api/venues/${id}/slots`),
   getCategories: () => request<string[]>('/api/venues/meta/categories'),
-  getSlotAvailability: (venueId: string, date: string, time: string) =>
-    request<any[]>(`/api/bookings/availability/${venueId}?date=${date}&time=${time}`),
+  // Returns { slots: [{...booked_ranges}], venue_ranges: [{start,end}] }
+  getSlotAvailability: (venueId: string, date: string) =>
+    request<{ slots: any[]; venue_ranges: { start: string; end: string }[] }>(
+      `/api/bookings/availability/${venueId}?date=${date}`
+    ),
 
   getBookings: (status?: string) => {
     const qs = status ? `?status=${status}` : '';
     return request<any[]>(`/api/bookings${qs}`);
   },
-  createBooking: (data: { venue_id: string; slot_id?: string; date: string; time: string; end_time?: string; guests: number; notes?: string }) =>
+  createBooking: (data: { venue_id: string; slot_id?: string; date: string; time: string; duration: number; guests: number; notes?: string }) =>
     request<any>('/api/bookings', { method: 'POST', body: JSON.stringify(data) }),
   cancelBooking: (id: string) => request<any>(`/api/bookings/${id}/cancel`, { method: 'PATCH' }),
+  clearBookingHistory: () => request<{ deleted: number }>('/api/bookings/history', { method: 'DELETE' }),
 
   getReviews: (venueId: string) => request<any[]>(`/api/reviews/venue/${venueId}`),
   postReview: (data: { venue_id: string; rating: number; comment: string }) =>
@@ -70,6 +74,11 @@ export const api = {
   getPromotions: (venueId?: string) =>
     venueId ? request<any[]>(`/api/promotions/venue/${venueId}`) : request<any[]>('/api/promotions'),
 
+  // Business applications
+  submitApplication: (data: { business_name: string; category: string; location: string; description?: string; phone?: string }) =>
+    request<any>('/api/applications', { method: 'POST', body: JSON.stringify(data) }),
+  getMyApplication: () => request<any>('/api/applications/my'),
+
   business: {
     getStats: () => request<any>('/api/business/stats'),
     getVenues: () => request<any[]>('/api/business/venues'),
@@ -86,6 +95,8 @@ export const api = {
     confirmBooking: (id: string) => request<any>(`/api/business/bookings/${id}/confirm`, { method: 'PATCH' }),
     cancelBooking: (id: string) => request<any>(`/api/business/bookings/${id}/cancel`, { method: 'PATCH' }),
     completeBooking: (id: string) => request<any>(`/api/business/bookings/${id}/complete`, { method: 'PATCH' }),
+    rateClient: (bookingId: string, data: { rating: number; comment?: string }) =>
+      request<any>(`/api/business/bookings/${bookingId}/rate-client`, { method: 'POST', body: JSON.stringify(data) }),
   },
 
   uploadVenuePhoto: async (venueId: string, uri: string) => {

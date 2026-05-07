@@ -24,9 +24,11 @@ CREATE TABLE IF NOT EXISTS users (
 -- ═══════════════════════════════════════════════════════
 CREATE TABLE IF NOT EXISTS venues (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_id    UUID REFERENCES users(id) ON DELETE SET NULL,
   name        TEXT NOT NULL,
   category    TEXT NOT NULL,
   location    TEXT NOT NULL,
+  city        TEXT,
   description TEXT,
   image_url   TEXT,
   price_range TEXT,
@@ -56,6 +58,9 @@ CREATE TABLE IF NOT EXISTS bookings (
   guests     INTEGER DEFAULT 1,
   total_price INTEGER DEFAULT 0,
   status     TEXT DEFAULT 'pending' CHECK (status IN ('upcoming','pending','confirmed','completed','cancelled')),
+  client_rated_at TIMESTAMPTZ,
+  client_rating_given INTEGER CHECK (client_rating_given BETWEEN 1 AND 5),
+  client_rating_comment TEXT,
   notes      TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
@@ -203,6 +208,8 @@ END $$;
 
 -- Add new columns to venues if migrating
 DO $$ BEGIN
+  ALTER TABLE venues ADD COLUMN IF NOT EXISTS owner_id UUID REFERENCES users(id) ON DELETE SET NULL;
+  ALTER TABLE venues ADD COLUMN IF NOT EXISTS city TEXT;
   ALTER TABLE venues ADD COLUMN IF NOT EXISTS open_time TEXT DEFAULT '10:00';
   ALTER TABLE venues ADD COLUMN IF NOT EXISTS close_time TEXT DEFAULT '02:00';
   ALTER TABLE venues ADD COLUMN IF NOT EXISTS phone TEXT;
@@ -215,7 +222,18 @@ DO $$ BEGIN
   ALTER TABLE bookings ADD COLUMN IF NOT EXISTS slot_id UUID;
   ALTER TABLE bookings ADD COLUMN IF NOT EXISTS end_time TEXT;
   ALTER TABLE bookings ADD COLUMN IF NOT EXISTS total_price INTEGER DEFAULT 0;
+  ALTER TABLE bookings ADD COLUMN IF NOT EXISTS client_rated_at TIMESTAMPTZ;
+  ALTER TABLE bookings ADD COLUMN IF NOT EXISTS client_rating_given INTEGER;
+  ALTER TABLE bookings ADD COLUMN IF NOT EXISTS client_rating_comment TEXT;
   ALTER TABLE bookings ADD COLUMN IF NOT EXISTS notes TEXT;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_client_rating_given_check;
+  ALTER TABLE bookings
+    ADD CONSTRAINT bookings_client_rating_given_check
+    CHECK (client_rating_given IS NULL OR client_rating_given BETWEEN 1 AND 5);
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
@@ -236,6 +254,41 @@ DO $$ BEGIN
   ALTER TABLE bookings
     ADD CONSTRAINT bookings_status_check
     CHECK (status IN ('upcoming','pending','confirmed','completed','cancelled'));
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+-- Add duration (minutes) to venue_slots
+DO $$ BEGIN
+  ALTER TABLE venue_slots ADD COLUMN IF NOT EXISTS duration INTEGER DEFAULT 60;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+-- Business applications table
+CREATE TABLE IF NOT EXISTS business_applications (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       UUID REFERENCES users(id) ON DELETE CASCADE,
+  business_name TEXT NOT NULL,
+  category      TEXT NOT NULL,
+  location      TEXT NOT NULL,
+  description   TEXT,
+  phone         TEXT,
+  status        TEXT DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+  admin_note    TEXT,
+  created_at    TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS business_applications_one_active_per_user_idx
+  ON business_applications (user_id)
+  WHERE status IN ('pending', 'approved');
+
+-- Backfill end_time for existing bookings that don't have it (assume 60 min)
+DO $$ BEGIN
+  UPDATE bookings
+  SET end_time = to_char(
+    to_timestamp(date::text || ' ' || time, 'YYYY-MM-DD HH24:MI') + interval '60 minutes',
+    'HH24:MI'
+  )
+  WHERE end_time IS NULL;
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 `;
@@ -271,15 +324,47 @@ async function init() {
 
     // Create default admin if no admins exist
     const admins = await client.query("SELECT count(*) FROM users WHERE role='admin'");
+    const bcrypt = require('bcrypt');
     if (Number(admins.rows[0].count) === 0) {
-      const bcrypt = require('bcrypt');
       const hash = await bcrypt.hash('admin123', 10);
       await client.query(
-        `INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, 'admin') ON CONFLICT (email) DO UPDATE SET role='admin'`,
+        `INSERT INTO users (email, password_hash, name, role, email_verified)
+         VALUES ($1, $2, $3, 'admin', true)
+         ON CONFLICT (email) DO UPDATE SET role='admin', email_verified=true`,
         ['admin@bookmate.kz', hash, 'Admin']
       );
       console.log('Default admin created: admin@bookmate.kz / admin123');
     }
+
+    const bizHash = await bcrypt.hash('business123', 10);
+    const bizOwner = await client.query(
+      `INSERT INTO users (email, password_hash, name, role, phone, email_verified)
+       VALUES ($1, $2, $3, 'business_owner', $4, true)
+       ON CONFLICT (email)
+       DO UPDATE SET
+         role='business_owner',
+         email_verified=true,
+         name=EXCLUDED.name,
+         phone=EXCLUDED.phone
+       RETURNING id`,
+      ['owner@bookmate.kz', bizHash, 'Test Business Owner', '+7 700 555 0101']
+    );
+
+    await client.query(
+      `INSERT INTO venues (owner_id, name, category, location, city, description, phone, is_active)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,true)
+       ON CONFLICT DO NOTHING`,
+      [
+        bizOwner.rows[0].id,
+        'BookMate Test Lounge',
+        'Billiards',
+        'ул. Тестовая 1',
+        'Almaty',
+        'Тестовое заведение для входа в бизнес-панель',
+        '+7 700 555 0101',
+      ]
+    );
+    console.log('Default business owner ensured: owner@bookmate.kz / business123');
 
     console.log('Database initialised successfully!');
   } catch (err) {

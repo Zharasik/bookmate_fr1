@@ -275,8 +275,13 @@ router.delete('/photos/:id', async (req, res) => {
 router.get('/bookings', async (req, res) => {
   try {
     const { status, venue_id } = req.query;
-    let sql = `SELECT b.*, v.name AS venue_name, u.name AS user_name, u.email AS user_email
-               FROM bookings b JOIN venues v ON v.id=b.venue_id JOIN users u ON u.id=b.user_id WHERE 1=1`;
+    let sql = `SELECT b.*, v.name AS venue_name, u.name AS user_name, u.email AS user_email,
+                      vs.name AS slot_name
+               FROM bookings b
+               JOIN venues v ON v.id=b.venue_id
+               JOIN users u ON u.id=b.user_id
+               LEFT JOIN venue_slots vs ON vs.id=b.slot_id
+               WHERE 1=1`;
     const params = [];
     if (status) { params.push(status); sql += ` AND b.status=$${params.length}`; }
     if (venue_id) { params.push(venue_id); sql += ` AND b.venue_id=$${params.length}`; }
@@ -336,7 +341,9 @@ router.delete('/reviews/:id', async (req, res) => {
 router.get('/users', async (_req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT id, email, name, avatar_url, phone, role, created_at FROM users ORDER BY created_at DESC'
+      `SELECT id, email, name, avatar_url, phone, role, email_verified,
+              client_rating, rating_count, created_at
+       FROM users ORDER BY created_at DESC`
     );
     res.json(rows);
   } catch (err) { console.error(err); res.status(500).json({ error: 'Ошибка' }); }
@@ -345,17 +352,23 @@ router.get('/users', async (_req, res) => {
 router.patch('/users/:id/role', async (req, res) => {
   try {
     const { role } = req.body || {};
-    const roleResult = validateRole(role, { required: true });
-    if (roleResult.error) {
-      return res.status(400).json({ error: roleResult.error });
+    const allowed = ['user', 'business_owner', 'admin'];
+    if (!allowed.includes(role)) {
+      return res.status(400).json({ error: 'Недопустимая роль. Допустимо: user, business_owner, admin' });
     }
-
     const { rows } = await pool.query(
       'UPDATE users SET role=$1 WHERE id=$2 RETURNING id, email, name, role',
-      [roleResult.value, req.params.id]
+      [role, req.params.id]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Не найдено' });
     res.json(rows[0]);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Ошибка' }); }
+});
+
+router.delete('/users/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM users WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Ошибка' }); }
 });
 
@@ -374,6 +387,85 @@ router.post('/notify-all', async (req, res) => {
     }
     res.json({ sent: users.rows.length });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Ошибка' }); }
+});
+
+// ═══════════════════════════════════════════════════════
+// BUSINESS APPLICATIONS
+// ═══════════════════════════════════════════════════════
+router.get('/applications', async (_req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT a.*, u.name AS user_name, u.email AS user_email
+       FROM business_applications a
+       JOIN users u ON u.id=a.user_id
+       ORDER BY CASE a.status WHEN 'pending' THEN 1 WHEN 'approved' THEN 2 ELSE 3 END, a.created_at DESC`
+    );
+    res.json(rows);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Ошибка' }); }
+});
+
+router.patch('/applications/:id', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { status, admin_note } = req.body;
+    if (!['approved', 'rejected'].includes(status))
+      return res.status(400).json({ error: 'status должен быть approved или rejected' });
+
+    await client.query('BEGIN');
+
+    const appRes = await client.query(
+      'SELECT * FROM business_applications WHERE id=$1 FOR UPDATE',
+      [req.params.id]
+    );
+    if (!appRes.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Заявка не найдена' });
+    }
+    const app = appRes.rows[0];
+    if (app.status !== 'pending') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: `Заявка уже обработана: ${app.status}` });
+    }
+
+    await client.query(
+      'UPDATE business_applications SET status=$1, admin_note=$2 WHERE id=$3',
+      [status, admin_note || null, req.params.id]
+    );
+
+    if (status === 'approved') {
+      await client.query("UPDATE users SET role='business_owner' WHERE id=$1", [app.user_id]);
+
+      const venueRes = await client.query(
+        `INSERT INTO venues (owner_id, name, category, location, description, phone, is_active)
+         VALUES ($1,$2,$3,$4,$5,$6,true) RETURNING id`,
+        [app.user_id, app.business_name, app.category, app.location, app.description, app.phone]
+      );
+
+      await client.query('COMMIT');
+
+      pool.query(
+        `INSERT INTO notifications (user_id,type,title,message) VALUES ($1,'offer','Заявка одобрена!',$2)`,
+        [app.user_id, `Поздравляем! Ваша заявка на "${app.business_name}" одобрена. Войдите в бизнес-панель для управления.`]
+      ).catch(console.error);
+
+      return res.json({ success: true, venue_id: venueRes.rows[0].id });
+    }
+
+    await client.query('COMMIT');
+
+    pool.query(
+      `INSERT INTO notifications (user_id,type,title,message) VALUES ($1,'offer','Заявка отклонена',$2)`,
+      [app.user_id, `Ваша заявка на "${app.business_name}" отклонена.${admin_note ? ' Причина: ' + admin_note : ''}`]
+    ).catch(console.error);
+
+    res.json({ success: true });
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch {}
+    console.error(err);
+    res.status(500).json({ error: 'Ошибка' });
+  } finally {
+    client.release();
+  }
 });
 
 module.exports = router;

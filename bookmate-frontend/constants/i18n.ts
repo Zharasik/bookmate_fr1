@@ -34,6 +34,9 @@ const translations: Record<Lang, Record<string, string>> = {
     reviewsCount: 'отзывов',
     photos: 'Фото',
     addPhoto: 'Добавить фото',
+    promotions: 'Акции',
+    services: 'Услуги',
+    masters: 'Мастера',
 
     // ─── Booking ───────────────────────
     bookReservation: 'Бронирование',
@@ -115,6 +118,9 @@ const translations: Record<Lang, Record<string, string>> = {
     reviewsCount: 'пікір',
     photos: 'Фото',
     addPhoto: 'Фото қосу',
+    promotions: 'Акциялар',
+    services: 'Қызметтер',
+    masters: 'Шеберлер',
 
     // ─── Booking ───────────────────────
     bookReservation: 'Брондау',
