@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { api } from '../../api';
 
 const STATUS_META = {
-  pending:   { cls:'badge-yellow', label:'⏳ Ожидает' },
-  confirmed: { cls:'badge-green',  label:'✓ Подтверждена' },
-  completed: { cls:'badge-blue',   label:'✓ Завершена' },
-  cancelled: { cls:'badge-red',    label:'✕ Отменена' },
+  pending:     { cls:'badge-yellow',  label:'⏳ Ожидает' },
+  confirmed:   { cls:'badge-green',   label:'✓ Подтверждена' },
+  in_progress: { cls:'badge-purple',  label:'▶ В процессе' },
+  completed:   { cls:'badge-blue',    label:'✓ Завершена' },
+  cancelled:   { cls:'badge-red',     label:'✕ Отменена' },
 };
 
 function Stars({ value, onChange }) {
@@ -32,11 +33,13 @@ export default function BizBookings() {
   useEffect(()=>{ setLoading(true); load(); },[filter]);
 
   const action = async (id, act) => {
-    if(!window.confirm({confirm:'Подтвердить бронь?',cancel:'Отменить бронь?',complete:'Завершить бронь?'}[act]))return;
+    const labels = { confirm:'Подтвердить бронь?', cancel:'Отменить бронь?', complete:'Завершить бронь?', start:'Начать визит?' };
+    if(!window.confirm(labels[act]||'Продолжить?'))return;
     setActing(id+act);
     try {
       if(act==='confirm') await api.biz.confirmBooking(id);
       else if(act==='cancel') await api.biz.cancelBooking(id);
+      else if(act==='start') await api.biz.startBooking(id);
       else {
         await api.biz.completeBooking(id);
         const b = bookings.find(b=>b.id===id);
@@ -63,7 +66,7 @@ export default function BizBookings() {
     <>
       <div className="page-header"><h1>Бронирования <span className="tag">{bookings.length}</span></h1></div>
       <div className="tabs">
-        {[['','Все'],['pending','Ожидают'],['confirmed','Подтверждены'],['completed','Завершены'],['cancelled','Отменены']].map(([k,l])=>(
+        {[['','Все'],['in_progress','В процессе'],['pending','Ожидают'],['confirmed','Подтверждены'],['completed','Завершены'],['cancelled','Отменены']].map(([k,l])=>(
           <button key={k} className={`tab-btn${filter===k?' active':''}`} onClick={()=>setFilter(k)}>
             {l}{k&&counts[k]>0?` (${counts[k]})`:''}
           </button>
@@ -94,12 +97,22 @@ export default function BizBookings() {
                       <td><div className="text-sm">{String(b.date).split('T')[0]}</div><div className="text-sm text-muted">{b.time}{b.end_time?` – ${b.end_time}`:''}</div></td>
                       <td className="text-sm">{b.guests}</td>
                       <td className="text-bold">{b.total_price>0?`${b.total_price.toLocaleString()} ₸`:'—'}</td>
-                      <td><span className={`badge ${meta.cls}`}>{meta.label}</span></td>
+                      <td>
+                        <span className={`badge ${meta.cls}`}>{meta.label}</span>
+                        {Number(b.rating_appeal_count) > 0 && (
+                          <div style={{marginTop:4}}>
+                            <span className="badge badge-yellow" title="Клиент оспорил вашу оценку">
+                              ⚠️ Оценка оспорена
+                            </span>
+                          </div>
+                        )}
+                      </td>
                       <td>
                         <div className="flex gap-2">
                           {b.status==='pending'&&<><button className="btn btn-success btn-sm" disabled={!!acting} onClick={()=>action(b.id,'confirm')}>✓</button><button className="btn btn-danger btn-sm" disabled={!!acting} onClick={()=>action(b.id,'cancel')}>✕</button></>}
-                          {b.status==='confirmed'&&<><button className="btn btn-sm" style={{background:'#DBEAFE',color:'#1E40AF'}} disabled={!!acting} onClick={()=>action(b.id,'complete')}>✓✓ Завершить</button><button className="btn btn-danger btn-sm" disabled={!!acting} onClick={()=>action(b.id,'cancel')}>✕</button></>}
-                          {b.status==='completed'&&<button className="btn btn-ghost btn-sm" onClick={()=>{setRateModal(b);setRating(5);setComment('');}}>⭐ Оценить</button>}
+                          {b.status==='confirmed'&&<><button className="btn btn-sm" style={{background:'#EDE9FE',color:'#5B21B6'}} disabled={!!acting} onClick={()=>action(b.id,'start')}>▶ Начать</button><button className="btn btn-sm" style={{background:'#DBEAFE',color:'#1E40AF'}} disabled={!!acting} onClick={()=>action(b.id,'complete')}>✓✓ Завершить</button><button className="btn btn-danger btn-sm" disabled={!!acting} onClick={()=>action(b.id,'cancel')}>✕</button></>}
+                          {b.status==='in_progress'&&<><button className="btn btn-sm" style={{background:'#DBEAFE',color:'#1E40AF'}} disabled={!!acting} onClick={()=>action(b.id,'complete')}>✓✓ Завершить</button></>}
+                          {b.status==='completed'&&<button className="btn btn-ghost btn-sm" onClick={()=>{setRateModal(b);setRating(5);setComment('');}}>⭐ {b.client_rated_at?'Оценено':'Оценить'}</button>}
                         </div>
                       </td>
                     </tr>

@@ -6,13 +6,14 @@ const NAV = [
   { to: '/biz/slots',     icon: '🪑', label: 'Места / слоты' },
   { to: '/biz/bookings',  icon: '📅', label: 'Бронирования' },
   { to: '/biz/services',  icon: '🔧', label: 'Услуги' },
+  { to: '/biz/reviews',   icon: '⭐', label: 'Отзывы' },
 ];
 
 export default function BizLayout() {
   const navigate = useNavigate();
   const user = (() => { try { return JSON.parse(localStorage.getItem('admin_user') || '{}'); } catch { return {}; } })();
   const path = window.location.pathname.split('/').slice(0, 3).join('/');
-  const title = { '/biz/dashboard': 'Мой дашборд', '/biz/venues': 'Мои заведения', '/biz/slots': 'Места / слоты', '/biz/bookings': 'Бронирования', '/biz/services': 'Услуги' }[path] || 'Бизнес';
+  const title = { '/biz/dashboard': 'Мой дашборд', '/biz/venues': 'Мои заведения', '/biz/slots': 'Места / слоты', '/biz/bookings': 'Бронирования', '/biz/services': 'Услуги', '/biz/reviews': 'Отзывы' }[path] || 'Бизнес';
 
   const logout = () => { localStorage.removeItem('admin_token'); localStorage.removeItem('admin_user'); navigate('/login'); };
 
