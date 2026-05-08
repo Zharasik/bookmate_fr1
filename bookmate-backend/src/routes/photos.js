@@ -32,6 +32,14 @@ router.post('/venue/:venueId', auth, upload.single('photo'), async (req, res) =>
   } catch (err) { res.status(500).json({ error: 'Ошибка загрузки' }); }
 });
 
+router.post('/review', auth, upload.single('photo'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Файл не загружен' });
+    const url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+    res.status(201).json({ url });
+  } catch (err) { res.status(500).json({ error: 'Ошибка загрузки' }); }
+});
+
 router.post('/avatar', auth, upload.single('avatar'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Файл не загружен' });
