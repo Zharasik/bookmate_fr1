@@ -14,6 +14,18 @@ async function request(path, opts = {}) {
   return data;
 }
 
+async function requestForm(path, method, formData) {
+  const token = getToken();
+  const headers = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await fetch(`${API_URL}${path}`, { method, body: formData, headers });
+  const text = await res.text();
+  let data;
+  try { data = text ? JSON.parse(text) : {}; } catch { data = { error: text }; }
+  if (!res.ok) throw new Error(data?.error || `Ошибка ${res.status}`);
+  return data;
+}
+
 export const api = {
   login: (email, password) =>
     request('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
@@ -59,11 +71,31 @@ export const api = {
   biz: {
     getStats: () => request('/api/business/stats'),
     getVenues: () => request('/api/business/venues'),
-    createVenue: (data) => request('/api/business/venues', { method: 'POST', body: JSON.stringify(data) }),
-    updateVenue: (id, data) => request(`/api/business/venues/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    createVenue: (data, imageFile) => {
+      const fd = new FormData();
+      Object.entries(data).forEach(([k, v]) => { if (v !== undefined && v !== null) fd.append(k, v); });
+      if (imageFile) fd.append('image', imageFile);
+      return requestForm('/api/business/venues', 'POST', fd);
+    },
+    updateVenue: (id, data, imageFile) => {
+      const fd = new FormData();
+      Object.entries(data).forEach(([k, v]) => { if (v !== undefined && v !== null) fd.append(k, v); });
+      if (imageFile) fd.append('image', imageFile);
+      return requestForm(`/api/business/venues/${id}`, 'PUT', fd);
+    },
     getSlots: (venueId) => request(`/api/business/venues/${venueId}/slots`),
-    createSlot: (venueId, data) => request(`/api/business/venues/${venueId}/slots`, { method: 'POST', body: JSON.stringify(data) }),
-    updateSlot: (slotId, data) => request(`/api/business/slots/${slotId}`, { method: 'PUT', body: JSON.stringify(data) }),
+    createSlot: (venueId, data, imageFile) => {
+      const fd = new FormData();
+      Object.entries(data).forEach(([k, v]) => { if (v !== undefined && v !== null) fd.append(k, v); });
+      if (imageFile) fd.append('image', imageFile);
+      return requestForm(`/api/business/venues/${venueId}/slots`, 'POST', fd);
+    },
+    updateSlot: (slotId, data, imageFile) => {
+      const fd = new FormData();
+      Object.entries(data).forEach(([k, v]) => { if (v !== undefined && v !== null) fd.append(k, v); });
+      if (imageFile) fd.append('image', imageFile);
+      return requestForm(`/api/business/slots/${slotId}`, 'PUT', fd);
+    },
     deleteSlot: (slotId) => request(`/api/business/slots/${slotId}`, { method: 'DELETE' }),
     getServices: (venueId) => request(`/api/business/venues/${venueId}/services`),
     createService: (venueId, data) => request(`/api/business/venues/${venueId}/services`, { method: 'POST', body: JSON.stringify(data) }),

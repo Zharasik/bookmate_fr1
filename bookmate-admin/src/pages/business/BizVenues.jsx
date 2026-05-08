@@ -1,30 +1,54 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '../../api';
 import Modal from '../../components/Modal';
 
-const EMPTY = { name:'',category:'',location:'',description:'',image_url:'',price_range:'',open_time:'10:00',close_time:'22:00',phone:'',is_active:true };
+const EMPTY = { name:'',category:'',location:'',description:'',price_range:'',open_time:'10:00',close_time:'22:00',phone:'',is_active:true };
 
 export default function BizVenues() {
   const [venues, setVenues] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState(EMPTY);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const fileRef = useRef();
 
   const load = () => api.biz.getVenues().then(setVenues).catch(()=>{}).finally(()=>setLoading(false));
   useEffect(()=>{ load(); },[]);
 
   const set = (k,v) => setForm(p=>({...p,[k]:v}));
-  const openCreate = () => { setForm(EMPTY); setModal('create'); setError(''); };
-  const openEdit = v => { setForm({...EMPTY,...v, is_active:v.is_active!==false}); setModal(v); setError(''); };
+
+  const openCreate = () => {
+    setForm(EMPTY);
+    setImageFile(null);
+    setImagePreview('');
+    setModal('create');
+    setError('');
+  };
+
+  const openEdit = v => {
+    setForm({...EMPTY,...v, is_active:v.is_active!==false});
+    setImageFile(null);
+    setImagePreview(v.image_url || '');
+    setModal(v);
+    setError('');
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
 
   const handleSave = async () => {
     if (!form.name||!form.category||!form.location) { setError('Название, категория и адрес обязательны'); return; }
     setSaving(true); setError('');
     try {
-      if (modal==='create') await api.biz.createVenue(form);
-      else await api.biz.updateVenue(modal.id, form);
+      if (modal==='create') await api.biz.createVenue(form, imageFile);
+      else await api.biz.updateVenue(modal.id, form, imageFile);
       setModal(null); load();
     } catch(e) { setError(e.message); } finally { setSaving(false); }
   };
@@ -64,9 +88,22 @@ export default function BizVenues() {
           <div className="form-row"><div className="form-group"><label className="form-label">Название *</label><input className="form-input" value={form.name} onChange={e=>set('name',e.target.value)}/></div><div className="form-group"><label className="form-label">Категория *</label><input className="form-input" value={form.category} onChange={e=>set('category',e.target.value)} placeholder="Billiards, Bowling..."/></div></div>
           <div className="form-group"><label className="form-label">Адрес *</label><input className="form-input" value={form.location} onChange={e=>set('location',e.target.value)}/></div>
           <div className="form-group"><label className="form-label">Описание</label><textarea className="form-textarea" value={form.description||''} onChange={e=>set('description',e.target.value)}/></div>
-          <div className="form-group"><label className="form-label">Фото (ссылка)</label><input className="form-input" value={form.image_url||''} onChange={e=>set('image_url',e.target.value)} placeholder="https://..."/></div>
+
+          <div className="form-group">
+            <label className="form-label">Фото заведения</label>
+            {imagePreview && (
+              <div style={{marginBottom:8,position:'relative'}}>
+                <img src={imagePreview} alt="preview" style={{width:'100%',maxHeight:180,objectFit:'cover',borderRadius:10,display:'block'}}/>
+                <button type="button" onClick={()=>{setImageFile(null);setImagePreview('');set('image_url','');if(fileRef.current)fileRef.current.value='';}} style={{position:'absolute',top:6,right:6,background:'rgba(0,0,0,0.55)',color:'#fff',border:'none',borderRadius:'50%',width:26,height:26,cursor:'pointer',fontSize:16,lineHeight:'26px',textAlign:'center'}}>×</button>
+              </div>
+            )}
+            <input ref={fileRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp" onChange={handleFileChange} style={{display:'block',marginBottom:8}}/>
+            <input className="form-input" value={imageFile ? '' : (form.image_url||'')} placeholder="или вставьте ссылку на фото https://..." onChange={e=>{set('image_url',e.target.value);setImagePreview(e.target.value);setImageFile(null);if(fileRef.current)fileRef.current.value='';}} disabled={!!imageFile}/>
+            <p className="form-hint" style={{marginTop:4}}>Загрузите файл или вставьте URL · JPG, PNG, WebP · до 5 МБ</p>
+          </div>
+
           <div className="form-row"><div className="form-group"><label className="form-label">Открытие</label><input className="form-input" type="time" value={form.open_time} onChange={e=>set('open_time',e.target.value)}/></div><div className="form-group"><label className="form-label">Закрытие</label><input className="form-input" type="time" value={form.close_time} onChange={e=>set('close_time',e.target.value)}/></div></div>
-          <div className="form-row"><div className="form-group"><label className="form-label">Ценовой диапазон</label><select className="form-select" value={form.price_range||''} onChange={e=>set('price_range',e.target.value)}><option value="">—</option><option>₸</option><option>₸₸</option><option>₸₸₸</option><option>₸₸₸₸</option></select></div><div className="form-group"><label className="form-label">Телефон</label><input className="form-input" value={form.phone||''} onChange={e=>set('phone',e.target.value)}/></div></div>
+          <div className="form-row"><div className="form-group"><label className="form-label">Ценовой диапазон</label><input className="form-input" value={form.price_range||''} onChange={e=>set('price_range',e.target.value)} placeholder="от 2000 до 5000 ₸"/></div><div className="form-group"><label className="form-label">Телефон</label><input className="form-input" value={form.phone||''} onChange={e=>set('phone',e.target.value)}/></div></div>
           {modal!=='create'&&<div className="form-group flex items-center gap-2" style={{marginTop:8}}><label className="switch"><input type="checkbox" checked={form.is_active} onChange={e=>set('is_active',e.target.checked)}/><span className="slider"/></label><span className="form-label" style={{marginBottom:0}}>Активно</span></div>}
         </Modal>
       )}

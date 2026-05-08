@@ -1,9 +1,25 @@
 const { Router } = require("express");
+const multer = require("multer");
+const path = require("path");
+const { v4: uuidv4 } = require("uuid");
 const pool = require("../db/pool");
 const businessAuth = require("../middleware/businessAuth");
 
 const router = Router();
 router.use(businessAuth);
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, "uploads/"),
+  filename: (_req, file, cb) => cb(null, `${uuidv4()}${path.extname(file.originalname)}`),
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ok = /jpeg|jpg|png|webp/.test(path.extname(file.originalname).toLowerCase());
+    cb(ok ? null : new Error("Only images allowed"), ok);
+  },
+});
 
 // ═══════════════════════════════════════════════════════
 // MY VENUES
@@ -26,7 +42,7 @@ router.get("/venues", async (req, res) => {
   }
 });
 
-router.post("/venues", async (req, res) => {
+router.post("/venues", upload.single("image"), async (req, res) => {
   try {
     const {
       name,
@@ -34,7 +50,6 @@ router.post("/venues", async (req, res) => {
       location,
       city,
       description,
-      image_url,
       price_range,
       latitude,
       longitude,
@@ -48,6 +63,9 @@ router.post("/venues", async (req, res) => {
         .status(400)
         .json({ error: "Название, категория и адрес обязательны" });
     }
+    const image_url = req.file
+      ? `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`
+      : req.body.image_url || null;
     const { rows } = await pool.query(
       `INSERT INTO venues
          (owner_id, name, category, location, city, description, image_url, price_range,
@@ -65,7 +83,7 @@ router.post("/venues", async (req, res) => {
         price_range,
         latitude || 0,
         longitude || 0,
-        amenities || [],
+        amenities ? (Array.isArray(amenities) ? amenities : JSON.parse(amenities)) : [],
         open_time || "09:00",
         close_time || "21:00",
         phone,
@@ -78,7 +96,7 @@ router.post("/venues", async (req, res) => {
   }
 });
 
-router.put("/venues/:id", async (req, res) => {
+router.put("/venues/:id", upload.single("image"), async (req, res) => {
   try {
     const {
       name,
@@ -86,7 +104,6 @@ router.put("/venues/:id", async (req, res) => {
       location,
       city,
       description,
-      image_url,
       price_range,
       latitude,
       longitude,
@@ -96,6 +113,9 @@ router.put("/venues/:id", async (req, res) => {
       phone,
       is_active,
     } = req.body;
+    const image_url = req.file
+      ? `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`
+      : req.body.image_url;
 
     const check = await pool.query(
       "SELECT id FROM venues WHERE id=$1 AND owner_id=$2",
@@ -164,7 +184,7 @@ router.get("/venues/:venueId/slots", async (req, res) => {
   }
 });
 
-router.post("/venues/:venueId/slots", async (req, res) => {
+router.post("/venues/:venueId/slots", upload.single("image"), async (req, res) => {
   try {
     const check = await pool.query(
       "SELECT id FROM venues WHERE id=$1 AND owner_id=$2",
@@ -177,10 +197,14 @@ router.post("/venues/:venueId/slots", async (req, res) => {
     if (!name)
       return res.status(400).json({ error: "Название слота обязательно" });
 
+    const image_url = req.file
+      ? `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`
+      : req.body.image_url || null;
+
     const { rows } = await pool.query(
-      `INSERT INTO venue_slots (venue_id, name, description, capacity, price, duration)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [req.params.venueId, name, description, capacity || 1, price || 0, duration || 60],
+      `INSERT INTO venue_slots (venue_id, name, description, capacity, price, duration, image_url)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [req.params.venueId, name, description, capacity || 1, price || 0, duration || 60, image_url],
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -189,7 +213,7 @@ router.post("/venues/:venueId/slots", async (req, res) => {
   }
 });
 
-router.put("/slots/:slotId", async (req, res) => {
+router.put("/slots/:slotId", upload.single("image"), async (req, res) => {
   try {
     const { name, description, capacity, price, duration, is_active } = req.body;
     const check = await pool.query(
@@ -201,13 +225,18 @@ router.put("/slots/:slotId", async (req, res) => {
     if (check.rows.length === 0)
       return res.status(404).json({ error: "Слот не найден" });
 
+    const image_url = req.file
+      ? `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`
+      : req.body.image_url;
+
     const { rows } = await pool.query(
       `UPDATE venue_slots SET
          name=COALESCE($1,name), description=COALESCE($2,description),
          capacity=COALESCE($3,capacity), price=COALESCE($4,price),
-         duration=COALESCE($5,duration), is_active=COALESCE($6,is_active)
-       WHERE id=$7 RETURNING *`,
-      [name, description, capacity, price, duration, is_active, req.params.slotId],
+         duration=COALESCE($5,duration), is_active=COALESCE($6,is_active),
+         image_url=COALESCE($7,image_url)
+       WHERE id=$8 RETURNING *`,
+      [name, description, capacity, price, duration, is_active, image_url, req.params.slotId],
     );
     res.json(rows[0]);
   } catch (err) {

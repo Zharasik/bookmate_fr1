@@ -295,6 +295,12 @@ DO $$ BEGIN
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
+-- Add image_url to venue_slots
+DO $$ BEGIN
+  ALTER TABLE venue_slots ADD COLUMN IF NOT EXISTS image_url TEXT;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
 -- Business applications table
 CREATE TABLE IF NOT EXISTS business_applications (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
