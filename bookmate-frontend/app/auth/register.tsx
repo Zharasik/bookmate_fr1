@@ -3,7 +3,7 @@ import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Keyboa
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Eye, EyeOff, Mail, Lock, User, Phone, Briefcase } from 'lucide-react-native';
+import { Eye, EyeOff, Mail, Lock, User, Phone } from 'lucide-react-native';
 import { useTheme, useT } from '../../hooks/useHelpers';
 import { api } from '../../services/api';
 
@@ -15,7 +15,6 @@ export default function RegisterScreen() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
-  const [role, setRole] = useState<'user' | 'business_owner'>('user');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -24,7 +23,7 @@ export default function RegisterScreen() {
     if (password.length < 6) { setError('Пароль минимум 6 символов'); return; }
     setLoading(true); setError('');
     try {
-      const res = await api.register(email.trim().toLowerCase(), password, name.trim(), phone || undefined, role);
+      const res = await api.register(email.trim().toLowerCase(), password, name.trim(), phone || undefined, 'user');
       router.push({ pathname: '/auth/verify', params: { userId: res.userId, email: res.email, devCode: res.dev_code || '' } } as any);
     } catch (e: any) { setError(e.message || t('registerError')); }
     finally { setLoading(false); }
@@ -46,17 +45,6 @@ export default function RegisterScreen() {
           <View style={[styles.card, { backgroundColor: c.card }]}>
             <Text style={[styles.cardTitle, { color: c.text }]}>{t('register')}</Text>
             {error ? <View style={styles.errorBox}><Text style={styles.errorText}>{error}</Text></View> : null}
-
-            <View style={styles.roleRow}>
-              <Pressable style={[styles.roleBtn, { backgroundColor: role === 'user' ? c.primary : c.inputBg, borderColor: role === 'user' ? c.primary : c.border }]} onPress={() => setRole('user')}>
-                <User size={16} color={role === 'user' ? '#fff' : c.textSecondary} />
-                <Text style={[styles.roleTxt, { color: role === 'user' ? '#fff' : c.textSecondary }]}>Клиент</Text>
-              </Pressable>
-              <Pressable style={[styles.roleBtn, { backgroundColor: role === 'business_owner' ? c.primary : c.inputBg, borderColor: role === 'business_owner' ? c.primary : c.border }]} onPress={() => setRole('business_owner')}>
-                <Briefcase size={16} color={role === 'business_owner' ? '#fff' : c.textSecondary} />
-                <Text style={[styles.roleTxt, { color: role === 'business_owner' ? '#fff' : c.textSecondary }]}>Бизнес</Text>
-              </Pressable>
-            </View>
 
             <View style={[styles.inputWrap, { backgroundColor: c.inputBg, borderColor: c.border }]}>
               <User size={18} color={c.textMuted} />
@@ -104,9 +92,6 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 20, fontWeight: '700', marginBottom: 16 },
   errorBox: { backgroundColor: '#FEE2E2', borderRadius: 10, padding: 12, marginBottom: 14 },
   errorText: { color: '#991B1B', fontSize: 14, textAlign: 'center' },
-  roleRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
-  roleBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, borderWidth: 1.5, paddingVertical: 12 },
-  roleTxt: { fontSize: 14, fontWeight: '600' },
   inputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, marginBottom: 12, height: 52, gap: 10 },
   input: { flex: 1, fontSize: 15 },
   btn: { height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },

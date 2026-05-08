@@ -12,35 +12,38 @@ import {
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Calendar, Clock, MapPin, X, Star, Trash2 } from "lucide-react-native";
+import { Calendar, Clock, MapPin, X, Star, Trash2, Flag, CheckCircle } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useTheme, useT } from "../../hooks/useHelpers";
 import { api } from "../../services/api";
 
-type FilterKey = "all" | "confirmed" | "pending" | "completed" | "cancelled";
+type FilterKey = "all" | "confirmed" | "in_progress" | "pending" | "completed" | "cancelled";
 
 const FILTERS: { key: FilterKey; label: string; dot: string }[] = [
   { key: "all", label: "Все", dot: "#6B7280" },
-  { key: "confirmed", label: "Confirmed", dot: "#10B981" },
-  { key: "pending", label: "Pending", dot: "#F59E0B" },
-  { key: "completed", label: "Completed", dot: "#3B82F6" },
-  { key: "cancelled", label: "Cancelled", dot: "#EF4444" },
+  { key: "in_progress", label: "В процессе", dot: "#8B5CF6" },
+  { key: "confirmed", label: "Подтверждены", dot: "#10B981" },
+  { key: "pending", label: "Ожидают", dot: "#F59E0B" },
+  { key: "completed", label: "Завершены", dot: "#3B82F6" },
+  { key: "cancelled", label: "Отменены", dot: "#EF4444" },
 ];
 
 const STATUS_META: Record<string, { bg: string; text: string; label: string }> =
   {
     pending: { bg: "#FEF3C7", text: "#92400E", label: "⏳ Ожидает" },
-    upcoming: { bg: "#FEF3C7", text: "#92400E", label: "⏳ Ожидает" }, // legacy alias
+    upcoming: { bg: "#FEF3C7", text: "#92400E", label: "⏳ Ожидает" },
     confirmed: { bg: "#D1FAE5", text: "#065F46", label: "✓ Подтверждена" },
+    in_progress: { bg: "#EDE9FE", text: "#5B21B6", label: "▶ В процессе" },
     completed: { bg: "#DBEAFE", text: "#1E40AF", label: "✓ Завершена" },
     cancelled: { bg: "#FEE2E2", text: "#991B1B", label: "✕ Отменена" },
   };
 
 const STATUS_ORDER: Record<string, number> = {
-  confirmed: 1,
-  pending: 2,
-  completed: 3,
-  cancelled: 4,
+  in_progress: 1,
+  confirmed: 2,
+  pending: 3,
+  completed: 4,
+  cancelled: 5,
 };
 
 function formatDateOnly(dateValue?: string) {
@@ -90,6 +93,9 @@ export default function BookingsScreen() {
   const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [clearingHistory, setClearingHistory] = useState(false);
+  const [appealModal, setAppealModal] = useState<any | null>(null);
+  const [appealReason, setAppealReason] = useState('');
+  const [appealSubmitting, setAppealSubmitting] = useState(false);
 
   // Нормализует старые статусы из БД к новым
   const normalizeStatus = (status: string): string => {
@@ -274,17 +280,21 @@ export default function BookingsScreen() {
             )}
             {b.status === "completed" && (
               <Pressable
-                style={[
-                  styles.actionBtn,
-                  { borderColor: "#F59E0B", backgroundColor: "#FEF3C7" },
-                ]}
-                onPress={() =>
-                  router.push(`/venue/${b.venue_id}/reviews` as any)
-                }
+                style={[styles.actionBtn, { borderColor: "#F59E0B", backgroundColor: "#FEF3C7" }]}
+                onPress={() => router.push(`/venue/${b.venue_id}/reviews` as any)}
               >
                 <Star size={13} color="#F59E0B" />
+                <Text style={[styles.actionText, { color: "#92400E" }]}>Оставить отзыв</Text>
+              </Pressable>
+            )}
+            {b.status === "completed" && b.client_rating_given && (
+              <Pressable
+                style={[styles.actionBtn, { borderColor: "#F59E0B", backgroundColor: "#FEF3C7" }]}
+                onPress={() => { setAppealModal(b); setAppealReason(''); }}
+              >
+                <Flag size={13} color="#F59E0B" />
                 <Text style={[styles.actionText, { color: "#92400E" }]}>
-                  Оставить отзыв
+                  Обжаловать оценку {b.client_rating_given}★
                 </Text>
               </Pressable>
             )}
@@ -443,9 +453,68 @@ export default function BookingsScreen() {
           )}
         </ScrollView>
       )}
+
+      {/* ── Appeal rating modal ── */}
+      {appealModal && (
+        <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
+          <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} onPress={() => setAppealModal(null)} />
+          <View style={[appealStyles.sheet, { backgroundColor: c.card }]}>
+            <View style={appealStyles.header}>
+              <Text style={[appealStyles.title, { color: c.text }]}>Обжаловать оценку</Text>
+              <Pressable onPress={() => setAppealModal(null)}>
+                <X size={22} color={c.text} />
+              </Pressable>
+            </View>
+            <Text style={{ color: c.textSecondary, fontSize: 13, marginBottom: 12 }}>
+              Заведение «{appealModal.venue_name}» поставило вам {appealModal.client_rating_given}★
+              {appealModal.client_rating_comment ? ` — "${appealModal.client_rating_comment}"` : ''}
+            </Text>
+            <Text style={[appealStyles.label, { color: c.text }]}>Причина обжалования</Text>
+            {['Оценка несправедливая', 'Я не давал повода', 'Нарушение правил', 'Другое'].map((r) => (
+              <Pressable
+                key={r}
+                onPress={() => setAppealReason(r)}
+                style={[appealStyles.option, {
+                  borderColor: appealReason === r ? '#F59E0B' : c.border,
+                  backgroundColor: appealReason === r ? '#FEF3C7' : c.bg,
+                }]}
+              >
+                {appealReason === r && <CheckCircle size={14} color="#F59E0B" />}
+                <Text style={{ color: appealReason === r ? '#92400E' : c.text, fontSize: 14, marginLeft: 6, fontWeight: appealReason === r ? '700' : '400' }}>{r}</Text>
+              </Pressable>
+            ))}
+            <Pressable
+              style={[appealStyles.btn, { backgroundColor: '#F59E0B', opacity: appealSubmitting || !appealReason ? 0.5 : 1 }]}
+              disabled={appealSubmitting || !appealReason}
+              onPress={async () => {
+                setAppealSubmitting(true);
+                try {
+                  await api.appealRating(appealModal.id, appealReason);
+                  Alert.alert('Жалоба отправлена', 'Администратор рассмотрит её и при необходимости отменит оценку.');
+                  setAppealModal(null);
+                } catch (e: any) { Alert.alert('Ошибка', e.message); }
+                finally { setAppealSubmitting(false); }
+              }}
+            >
+              {appealSubmitting
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Отправить жалобу</Text>}
+            </Pressable>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
+
+const appealStyles = StyleSheet.create({
+  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  title: { fontSize: 18, fontWeight: '700' },
+  label: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
+  option: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderRadius: 10, padding: 12, marginBottom: 8 },
+  btn: { borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1 },

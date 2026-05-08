@@ -163,6 +163,8 @@ tbody tr:hover td { background: #F9FAFB; }
 .btn-success:hover:not(:disabled) { background: #059669; }
 .btn-danger  { background: #EF4444; color: #fff; }
 .btn-danger:hover:not(:disabled)  { background: #DC2626; }
+.btn-warning { background: #F59E0B; color: #fff; }
+.btn-warning:hover:not(:disabled) { background: #D97706; }
 .btn-ghost { background: none; border: 1.5px solid var(--border); color: var(--text); }
 .btn-ghost:hover { background: var(--bg); }
 .btn-sm { padding: 5px 12px; font-size: 12px; border-radius: 8px; }

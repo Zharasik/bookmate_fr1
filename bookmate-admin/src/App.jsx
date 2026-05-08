@@ -17,6 +17,7 @@ import BizVenues from './pages/business/BizVenues';
 import BizSlots from './pages/business/BizSlots';
 import BizBookings from './pages/business/BizBookings';
 import BizServices from './pages/business/BizServices';
+import BizReviews from './pages/business/BizReviews';
 
 function getUser() {
   try { return JSON.parse(localStorage.getItem('admin_user') || 'null'); } catch { return null; }
@@ -68,6 +69,7 @@ export default function App() {
           <Route path="slots"     element={<BizSlots />} />
           <Route path="bookings"  element={<BizBookings />} />
           <Route path="services"  element={<BizServices />} />
+          <Route path="reviews"   element={<BizReviews />} />
         </Route>
 
         <Route path="*" element={<RootRedirect />} />

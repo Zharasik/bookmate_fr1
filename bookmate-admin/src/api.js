@@ -42,8 +42,14 @@ export const api = {
   updateService: (id, data) => request(`/api/admin/services/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteService: (id) => request(`/api/admin/services/${id}`, { method: 'DELETE' }),
 
-  getReviews: () => request('/api/admin/reviews'),
+  getReviews: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/api/admin/reviews${qs ? '?' + qs : ''}`);
+  },
   deleteReview: (id) => request(`/api/admin/reviews/${id}`, { method: 'DELETE' }),
+  getAppeals: (status) => request(`/api/admin/appeals${status ? '?status=' + status : ''}`),
+  processAppeal: (id, status, admin_note) =>
+    request(`/api/admin/appeals/${id}`, { method: 'PATCH', body: JSON.stringify({ status, admin_note }) }),
 
   getApplications: () => request('/api/admin/applications'),
   processApplication: (id, status, admin_note) =>
@@ -67,7 +73,11 @@ export const api = {
     },
     confirmBooking: (id) => request(`/api/business/bookings/${id}/confirm`, { method: 'PATCH' }),
     cancelBooking:  (id) => request(`/api/business/bookings/${id}/cancel`,  { method: 'PATCH' }),
+    startBooking:   (id) => request(`/api/business/bookings/${id}/start`,   { method: 'PATCH' }),
     completeBooking:(id) => request(`/api/business/bookings/${id}/complete`, { method: 'PATCH' }),
     rateClient: (id, data) => request(`/api/business/bookings/${id}/rate-client`, { method: 'POST', body: JSON.stringify(data) }),
+    getReviews: (venueId) => request(`/api/business/reviews${venueId ? '?venue_id=' + venueId : ''}`),
+    appealReview: (reviewId, reason) =>
+      request(`/api/business/reviews/${reviewId}/appeal`, { method: 'POST', body: JSON.stringify({ reason }) }),
   },
 };
