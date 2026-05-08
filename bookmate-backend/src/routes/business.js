@@ -245,15 +245,18 @@ router.get("/bookings", async (req, res) => {
     let sql = `
       SELECT
         b.*,
-        v.name        AS venue_name,
-        v.location    AS venue_location,
-        u.name         AS client_name,
-        u.email        AS client_email,
-        u.phone        AS client_phone,
-        u.avatar_url   AS client_avatar,
+        v.name          AS venue_name,
+        v.location      AS venue_location,
+        u.name          AS client_name,
+        u.email         AS client_email,
+        u.phone         AS client_phone,
+        u.avatar_url    AS client_avatar,
         u.client_rating AS client_rating,
         u.rating_count  AS client_rating_count,
-        vs.name       AS slot_name
+        vs.name         AS slot_name,
+        (SELECT COUNT(*) FROM review_appeals ra
+         WHERE ra.booking_id=b.id AND ra.type='client_rating' AND ra.status='pending'
+        ) AS rating_appeal_count
       FROM bookings b
       JOIN venues v ON v.id = b.venue_id
       JOIN users u ON u.id = b.user_id
@@ -274,7 +277,7 @@ router.get("/bookings", async (req, res) => {
       sql += ` AND b.date=$${params.length}`;
     }
 
-    sql += " ORDER BY b.date DESC, b.time DESC";
+    sql += ` ORDER BY CASE b.status WHEN 'in_progress' THEN 1 WHEN 'confirmed' THEN 2 WHEN 'pending' THEN 3 WHEN 'completed' THEN 4 WHEN 'cancelled' THEN 5 ELSE 6 END, b.date DESC, b.time DESC`;
     const { rows } = await pool.query(sql, params);
     res.json(rows);
   } catch (err) {
@@ -353,7 +356,7 @@ router.patch("/bookings/:id/cancel", async (req, res) => {
   }
 });
 
-router.patch("/bookings/:id/complete", async (req, res) => {
+router.patch("/bookings/:id/start", async (req, res) => {
   try {
     const check = await pool.query(
       `SELECT b.id, b.user_id, b.date, b.time, v.name AS venue_name
@@ -362,9 +365,41 @@ router.patch("/bookings/:id/complete", async (req, res) => {
       [req.params.id, req.userId],
     );
     if (check.rows.length === 0)
+      return res.status(404).json({ error: "Бронь не найдена или не подтверждена" });
+
+    const { rows } = await pool.query(
+      `UPDATE bookings SET status='in_progress' WHERE id=$1 RETURNING *`,
+      [req.params.id],
+    );
+
+    const b = check.rows[0];
+    pool
+      .query(
+        `INSERT INTO notifications (user_id, type, title, message)
+       VALUES ($1, 'booking', 'Визит начат', $2)`,
+        [b.user_id, `Ваш визит в "${b.venue_name}" начат. Хорошего времяпровождения!`],
+      )
+      .catch(console.error);
+
+    res.json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+router.patch("/bookings/:id/complete", async (req, res) => {
+  try {
+    const check = await pool.query(
+      `SELECT b.id, b.user_id, b.date, b.time, v.name AS venue_name
+       FROM bookings b JOIN venues v ON v.id=b.venue_id
+       WHERE b.id=$1 AND v.owner_id=$2 AND b.status IN ('confirmed','in_progress')`,
+      [req.params.id, req.userId],
+    );
+    if (check.rows.length === 0)
       return res
         .status(404)
-        .json({ error: "Бронь не найдена или не в статусе confirmed" });
+        .json({ error: "Бронь не найдена или не подтверждена / не начата" });
 
     const { rows } = await pool.query(
       `UPDATE bookings SET status='completed' WHERE id=$1 RETURNING *`,
@@ -524,6 +559,66 @@ router.post("/venues/:venueId/services", async (req, res) => {
       [req.params.venueId, name, description, price || 0, duration || 60],
     );
     res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════
+// APPEAL A CLIENT REVIEW (business flags review on own venue)
+// ═══════════════════════════════════════════════════════
+router.post("/reviews/:reviewId/appeal", async (req, res) => {
+  try {
+    const { reason } = req.body;
+    // Verify the review belongs to one of this owner's venues
+    const check = await pool.query(
+      `SELECT r.id FROM reviews r
+       JOIN venues v ON v.id = r.venue_id
+       WHERE r.id = $1 AND v.owner_id = $2`,
+      [req.params.reviewId, req.userId]
+    );
+    if (!check.rows[0]) return res.status(404).json({ error: "Отзыв не найден" });
+
+    const dup = await pool.query(
+      `SELECT id FROM review_appeals WHERE review_id=$1 AND reporter_id=$2 AND status='pending' LIMIT 1`,
+      [req.params.reviewId, req.userId]
+    );
+    if (dup.rows.length > 0)
+      return res.status(409).json({ error: "Вы уже подали жалобу на этот отзыв." });
+
+    await pool.query(
+      `INSERT INTO review_appeals (type, review_id, reporter_id, reason)
+       VALUES ('venue_review', $1, $2, $3)`,
+      [req.params.reviewId, req.userId, reason || null]
+    );
+    res.status(201).json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════
+// REVIEWS — read reviews for owner's venues
+// ═══════════════════════════════════════════════════════
+router.get("/reviews", async (req, res) => {
+  try {
+    const { venue_id } = req.query;
+    let sql = `
+      SELECT r.*, v.name AS venue_name, u.name AS user_name, u.avatar_url AS user_avatar
+      FROM reviews r
+      JOIN venues v ON v.id = r.venue_id
+      JOIN users u ON u.id = r.user_id
+      WHERE v.owner_id = $1`;
+    const params = [req.userId];
+    if (venue_id) {
+      params.push(venue_id);
+      sql += ` AND r.venue_id = $${params.length}`;
+    }
+    sql += " ORDER BY r.created_at DESC";
+    const { rows } = await pool.query(sql, params);
+    res.json(rows);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Ошибка сервера" });

@@ -26,8 +26,9 @@ import { api } from "../../services/api";
 
 const STATUS_FILTERS = [
   { key: "", label: "Все" },
+  { key: "in_progress", label: "В процессе" },
   { key: "pending", label: "Ожидают" },
-  { key: "confirmed", label: "Confirmed" },
+  { key: "confirmed", label: "Подтверждены" },
   { key: "completed", label: "Завершены" },
   { key: "cancelled", label: "Отменены" },
 ];
@@ -38,6 +39,7 @@ const STATUS_COLORS: Record<
 > = {
   pending: { bg: "#FEF3C7", text: "#92400E", label: "Ожидает" },
   confirmed: { bg: "#D1FAE5", text: "#065F46", label: "Подтверждена" },
+  in_progress: { bg: "#EDE9FE", text: "#5B21B6", label: "В процессе" },
   completed: { bg: "#DBEAFE", text: "#1E40AF", label: "Завершена" },
   cancelled: { bg: "#FEE2E2", text: "#991B1B", label: "Отменена" },
 };
@@ -97,23 +99,24 @@ export default function BusinessBookingsScreen() {
 
   const doAction = async (
     id: string,
-    action: "confirm" | "cancel" | "complete",
+    action: "confirm" | "cancel" | "complete" | "start",
   ) => {
-    const labels = {
+    const labels: Record<string, string> = {
       confirm: "Подтвердить",
       cancel: "Отменить",
       complete: "Завершить",
+      start: "Начать визит",
     };
-    const confirmed = await confirmAction(labels[action] + " бронь?");
+    const confirmed = await confirmAction(labels[action] + "?");
     if (!confirmed) return;
 
     setActionLoading(id + action);
     try {
       if (action === "confirm") await api.business.confirmBooking(id);
       else if (action === "cancel") await api.business.cancelBooking(id);
+      else if (action === "start") await api.business.startBooking(id);
       else {
         await api.business.completeBooking(id);
-        // Offer to rate the client after completing
         const booking = bookings.find(b => b.id === id);
         if (booking) {
           setRateValue(5); setRateComment('');
@@ -340,14 +343,21 @@ export default function BusinessBookingsScreen() {
                 {b.status === "confirmed" && (
                   <View style={styles.actions}>
                     <Pressable
-                      style={[
-                        styles.actionBtn,
-                        {
-                          backgroundColor: "#DBEAFE",
-                          borderColor: "#3B82F6",
-                          flex: 1,
-                        },
-                      ]}
+                      style={[styles.actionBtn, { backgroundColor: "#EDE9FE", borderColor: "#8B5CF6", flex: 1 }]}
+                      onPress={() => doAction(b.id, "start")}
+                      disabled={!!actionLoading}
+                    >
+                      {actionLoading === b.id + "start" ? (
+                        <ActivityIndicator size="small" color="#8B5CF6" />
+                      ) : (
+                        <>
+                          <Clock size={16} color="#8B5CF6" />
+                          <Text style={[styles.actionTxt, { color: "#5B21B6" }]}>Начать</Text>
+                        </>
+                      )}
+                    </Pressable>
+                    <Pressable
+                      style={[styles.actionBtn, { backgroundColor: "#DBEAFE", borderColor: "#3B82F6", flex: 1 }]}
                       onPress={() => doAction(b.id, "complete")}
                       disabled={!!actionLoading}
                     >
@@ -356,30 +366,34 @@ export default function BusinessBookingsScreen() {
                       ) : (
                         <>
                           <Check size={16} color="#3B82F6" />
-                          <Text
-                            style={[styles.actionTxt, { color: "#1E40AF" }]}
-                          >
-                            Завершить
-                          </Text>
+                          <Text style={[styles.actionTxt, { color: "#1E40AF" }]}>Завершить</Text>
                         </>
                       )}
                     </Pressable>
                     <Pressable
-                      style={[
-                        styles.actionBtn,
-                        {
-                          backgroundColor: "#FEE2E2",
-                          borderColor: "#EF4444",
-                          flex: 1,
-                        },
-                      ]}
+                      style={[styles.actionBtn, { backgroundColor: "#FEE2E2", borderColor: "#EF4444" }]}
                       onPress={() => doAction(b.id, "cancel")}
                       disabled={!!actionLoading}
                     >
                       <XCircle size={16} color="#EF4444" />
-                      <Text style={[styles.actionTxt, { color: "#991B1B" }]}>
-                        Отменить
-                      </Text>
+                    </Pressable>
+                  </View>
+                )}
+                {b.status === "in_progress" && (
+                  <View style={styles.actions}>
+                    <Pressable
+                      style={[styles.actionBtn, { backgroundColor: "#DBEAFE", borderColor: "#3B82F6", flex: 1 }]}
+                      onPress={() => doAction(b.id, "complete")}
+                      disabled={!!actionLoading}
+                    >
+                      {actionLoading === b.id + "complete" ? (
+                        <ActivityIndicator size="small" color="#3B82F6" />
+                      ) : (
+                        <>
+                          <Check size={16} color="#3B82F6" />
+                          <Text style={[styles.actionTxt, { color: "#1E40AF" }]}>Завершить</Text>
+                        </>
+                      )}
                     </Pressable>
                   </View>
                 )}

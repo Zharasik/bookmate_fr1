@@ -34,7 +34,7 @@ router.get("/", auth, async (req, res) => {
       params.push(status);
       sql += ` AND b.status=$${params.length}`;
     }
-    sql += ` ORDER BY CASE b.status WHEN 'confirmed' THEN 1 WHEN 'pending' THEN 2 WHEN 'completed' THEN 3 WHEN 'cancelled' THEN 4 ELSE 5 END, b.date ASC, b.time ASC`;
+    sql += ` ORDER BY CASE b.status WHEN 'in_progress' THEN 1 WHEN 'confirmed' THEN 2 WHEN 'pending' THEN 3 WHEN 'completed' THEN 4 WHEN 'cancelled' THEN 5 ELSE 6 END, b.date ASC, b.time ASC`;
     const { rows } = await pool.query(sql, params);
     res.json(rows);
   } catch (err) {
@@ -98,7 +98,7 @@ router.get("/availability/:venueId", async (req, res) => {
 router.post("/", auth, async (req, res) => {
   const client = await pool.connect();
   try {
-    const { venue_id, slot_id, date, time, duration, guests, notes } = req.body;
+    const { venue_id, slot_id, service_id, date, time, duration, guests, notes } = req.body;
     if (!venue_id || !date || !time)
       return res.status(400).json({ error: "venue_id, date и time обязательны" });
 
@@ -171,13 +171,27 @@ router.post("/", auth, async (req, res) => {
       totalPrice = slotPrice * Math.max(1, units);
     }
 
+    // If service selected, use its price/duration if no slot price given
+    if (service_id && totalPrice === 0) {
+      const svcRow = await client.query(
+        "SELECT price, duration FROM services WHERE id=$1 AND is_active=true",
+        [service_id],
+      );
+      if (svcRow.rows[0]) {
+        const svcDur = svcRow.rows[0].duration || 60;
+        const units = Math.max(1, Math.round(bookingDuration / svcDur));
+        totalPrice = (svcRow.rows[0].price || 0) * units;
+      }
+    }
+
     const { rows } = await client.query(
-      `INSERT INTO bookings (user_id,venue_id,slot_id,date,time,end_time,guests,total_price,status,notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9) RETURNING *`,
+      `INSERT INTO bookings (user_id,venue_id,slot_id,service_id,date,time,end_time,guests,total_price,status,notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending',$10) RETURNING *`,
       [
         req.userId,
         venue_id,
         slot_id || null,
+        service_id || null,
         date,
         time,
         endTime,
@@ -253,6 +267,36 @@ router.patch("/:id/cancel", auth, async (req, res) => {
   } catch (err) {
     console.error("Cancel booking error:", err);
     res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+// POST /api/bookings/:id/appeal-rating — user disputes client rating they received
+router.post('/:id/appeal-rating', auth, async (req, res) => {
+  try {
+    const { reason } = req.body;
+    // Check the booking belongs to the user and has a rating
+    const bk = await pool.query(
+      `SELECT id, client_rating_given FROM bookings WHERE id=$1 AND user_id=$2`,
+      [req.params.id, req.userId]
+    );
+    if (!bk.rows[0]) return res.status(404).json({ error: 'Бронь не найдена' });
+    if (!bk.rows[0].client_rating_given) return res.status(400).json({ error: 'На эту бронь оценка не выставлена' });
+
+    const dup = await pool.query(
+      `SELECT id FROM review_appeals WHERE booking_id=$1 AND reporter_id=$2 AND status='pending' LIMIT 1`,
+      [req.params.id, req.userId]
+    );
+    if (dup.rows.length > 0) return res.status(409).json({ error: 'Вы уже отправили жалобу на эту оценку.' });
+
+    await pool.query(
+      `INSERT INTO review_appeals (type, booking_id, reporter_id, reason)
+       VALUES ('client_rating',$1,$2,$3)`,
+      [req.params.id, req.userId, reason || null]
+    );
+    res.status(201).json({ success: true });
+  } catch (err) {
+    console.error('Appeal rating error:', err);
+    res.status(500).json({ error: 'Ошибка сервера' });
   }
 });
 

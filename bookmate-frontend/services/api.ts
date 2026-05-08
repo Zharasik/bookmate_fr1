@@ -57,8 +57,15 @@ export const api = {
   clearBookingHistory: () => request<{ deleted: number }>('/api/bookings/history', { method: 'DELETE' }),
 
   getReviews: (venueId: string) => request<any[]>(`/api/reviews/venue/${venueId}`),
-  postReview: (data: { venue_id: string; rating: number; comment: string }) =>
+  checkMyReview: (venueId: string) =>
+    request<{ reviewed: boolean; review_id: string | null }>(`/api/reviews/my/${venueId}`),
+  postReview: (data: { venue_id: string; rating: number; comment: string; photo_url?: string; reasons?: string[] }) =>
     request<any>('/api/reviews', { method: 'POST', body: JSON.stringify(data) }),
+  deleteMyReview: (id: string) => request<any>(`/api/reviews/${id}`, { method: 'DELETE' }),
+  appealReview: (reviewId: string, reason: string) =>
+    request<any>(`/api/reviews/${reviewId}/appeal`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  appealRating: (bookingId: string, reason: string) =>
+    request<any>(`/api/bookings/${bookingId}/appeal-rating`, { method: 'POST', body: JSON.stringify({ reason }) }),
 
   getNotifications: () => request<any[]>('/api/notifications'),
   markRead: (id: string) => request<any>(`/api/notifications/${id}/read`, { method: 'PATCH' }),
@@ -94,11 +101,21 @@ export const api = {
     },
     confirmBooking: (id: string) => request<any>(`/api/business/bookings/${id}/confirm`, { method: 'PATCH' }),
     cancelBooking: (id: string) => request<any>(`/api/business/bookings/${id}/cancel`, { method: 'PATCH' }),
+    startBooking: (id: string) => request<any>(`/api/business/bookings/${id}/start`, { method: 'PATCH' }),
     completeBooking: (id: string) => request<any>(`/api/business/bookings/${id}/complete`, { method: 'PATCH' }),
     rateClient: (bookingId: string, data: { rating: number; comment?: string }) =>
       request<any>(`/api/business/bookings/${bookingId}/rate-client`, { method: 'POST', body: JSON.stringify(data) }),
+    getReviews: (venueId?: string) =>
+      request<any[]>(`/api/business/reviews${venueId ? '?venue_id=' + venueId : ''}`),
   },
 
+  uploadReviewPhoto: async (uri: string) => {
+    const token = useStore.getState().token;
+    const form = new FormData();
+    form.append('photo', { uri, name: 'review.jpg', type: 'image/jpeg' } as any);
+    const res = await fetch(`${API_URL}/api/photos/review`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form });
+    return res.json();
+  },
   uploadVenuePhoto: async (venueId: string, uri: string) => {
     const token = useStore.getState().token;
     const form = new FormData();

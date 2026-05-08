@@ -304,22 +304,65 @@ router.patch('/bookings/:id', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════
-// REVIEWS MANAGEMENT
+// REVIEWS MANAGEMENT  (paginated + search + appeal filter)
 // ═══════════════════════════════════════════════════════
-router.get('/reviews', async (_req, res) => {
+router.get('/reviews', async (req, res) => {
   try {
-    const { rows } = await pool.query(
-      `SELECT r.*, v.name AS venue_name, u.name AS user_name
-       FROM reviews r JOIN venues v ON v.id=r.venue_id JOIN users u ON u.id=r.user_id
-       ORDER BY r.created_at DESC`
+    const page    = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit   = Math.min(100, parseInt(req.query.limit) || 50);
+    const offset  = (page - 1) * limit;
+    const search  = req.query.search  || '';
+    const rating  = req.query.rating  || '';   // e.g. "1", "2", "3", "1-3", "4-5"
+    const appeals = req.query.appeals || '';   // "only" = flagged only, "none" = no flags
+
+    const params = [];
+    let where = `WHERE 1=1`;
+
+    if (search) {
+      params.push(`%${search}%`);
+      where += ` AND (u.name ILIKE $${params.length} OR v.name ILIKE $${params.length} OR r.comment ILIKE $${params.length})`;
+    }
+    if (rating) {
+      const parts = rating.split('-').map(Number);
+      if (parts.length === 2) {
+        params.push(parts[0]); where += ` AND r.rating >= $${params.length}`;
+        params.push(parts[1]); where += ` AND r.rating <= $${params.length}`;
+      } else {
+        params.push(parts[0]); where += ` AND r.rating = $${params.length}`;
+      }
+    }
+    if (appeals === 'only') {
+      where += ` AND EXISTS (SELECT 1 FROM review_appeals a WHERE a.review_id=r.id AND a.status='pending')`;
+    } else if (appeals === 'none') {
+      where += ` AND NOT EXISTS (SELECT 1 FROM review_appeals a WHERE a.review_id=r.id AND a.status='pending')`;
+    }
+
+    const countRes = await pool.query(
+      `SELECT COUNT(*) FROM reviews r
+       JOIN venues v ON v.id=r.venue_id
+       JOIN users u ON u.id=r.user_id ${where}`,
+      params
     );
-    res.json(rows);
+    const total = Number(countRes.rows[0].count);
+
+    params.push(limit); params.push(offset);
+    const { rows } = await pool.query(
+      `SELECT r.*, v.name AS venue_name, u.name AS user_name,
+              (SELECT COUNT(*) FROM review_appeals a WHERE a.review_id=r.id AND a.status='pending') AS appeal_count
+       FROM reviews r
+       JOIN venues v ON v.id=r.venue_id
+       JOIN users u ON u.id=r.user_id
+       ${where}
+       ORDER BY appeal_count DESC, r.created_at DESC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params
+    );
+    res.json({ reviews: rows, total, page, limit, pages: Math.ceil(total / limit) });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Ошибка' }); }
 });
 
 router.delete('/reviews/:id', async (req, res) => {
   try {
-    // recalc venue rating after delete
     const review = await pool.query('SELECT venue_id FROM reviews WHERE id=$1', [req.params.id]);
     await pool.query('DELETE FROM reviews WHERE id=$1', [req.params.id]);
     if (review.rows[0]) {
@@ -333,6 +376,110 @@ router.delete('/reviews/:id', async (req, res) => {
     }
     res.json({ success: true });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Ошибка' }); }
+});
+
+// ═══════════════════════════════════════════════════════
+// APPEALS MANAGEMENT
+// ═══════════════════════════════════════════════════════
+router.get('/appeals', async (req, res) => {
+  try {
+    const { status } = req.query;
+    let where = status ? `WHERE a.status=$1` : `WHERE a.status='pending'`;
+    const params = status ? [status] : [];
+    const { rows } = await pool.query(
+      `SELECT a.*,
+              u.name AS reporter_name, u.email AS reporter_email,
+              CASE WHEN a.type='venue_review' THEN r.comment END AS review_comment,
+              CASE WHEN a.type='venue_review' THEN r.rating::text END AS review_rating,
+              CASE WHEN a.type='venue_review' THEN v.name END AS venue_name,
+              CASE WHEN a.type='client_rating' THEN bv.name END AS booking_venue,
+              CASE WHEN a.type='client_rating' THEN b.client_rating_given::text END AS given_rating,
+              CASE WHEN a.type='client_rating' THEN b.client_rating_comment END AS given_comment,
+              CASE WHEN a.type='client_rating' THEN b.date::text END AS booking_date
+       FROM review_appeals a
+       JOIN users u ON u.id=a.reporter_id
+       LEFT JOIN reviews r ON r.id=a.review_id
+       LEFT JOIN venues v ON v.id=r.venue_id
+       LEFT JOIN bookings b ON b.id=a.booking_id
+       LEFT JOIN venues bv ON bv.id=b.venue_id
+       ${where}
+       ORDER BY a.created_at DESC`,
+      params
+    );
+    res.json(rows);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Ошибка' }); }
+});
+
+router.patch('/appeals/:id', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { status, admin_note } = req.body;
+    if (!['approved', 'dismissed'].includes(status))
+      return res.status(400).json({ error: 'status: approved или dismissed' });
+
+    await client.query('BEGIN');
+
+    const appRes = await client.query(
+      'SELECT * FROM review_appeals WHERE id=$1 FOR UPDATE', [req.params.id]
+    );
+    if (!appRes.rows[0]) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Не найдено' }); }
+    const appeal = appRes.rows[0];
+
+    await client.query(
+      'UPDATE review_appeals SET status=$1, admin_note=$2 WHERE id=$3',
+      [status, admin_note || null, req.params.id]
+    );
+
+    // If approved → delete the flagged review or zero out the booking rating
+    if (status === 'approved') {
+      if (appeal.type === 'venue_review' && appeal.review_id) {
+        const rv = await client.query('SELECT venue_id FROM reviews WHERE id=$1', [appeal.review_id]);
+        await client.query('DELETE FROM reviews WHERE id=$1', [appeal.review_id]);
+        if (rv.rows[0]) {
+          const vid = rv.rows[0].venue_id;
+          await client.query(
+            `UPDATE venues SET
+               rating = COALESCE((SELECT ROUND(AVG(rating)::numeric,1) FROM reviews WHERE venue_id=$1),0),
+               review_count = (SELECT COUNT(*) FROM reviews WHERE venue_id=$1)
+             WHERE id=$1`, [vid]
+          );
+        }
+      } else if (appeal.type === 'client_rating' && appeal.booking_id) {
+        // Fetch old rating to recalculate user's average
+        const bk = await client.query(
+          'SELECT user_id, client_rating_given FROM bookings WHERE id=$1', [appeal.booking_id]
+        );
+        if (bk.rows[0] && bk.rows[0].client_rating_given) {
+          const { user_id, client_rating_given } = bk.rows[0];
+          const ur = await client.query(
+            'SELECT client_rating, rating_count FROM users WHERE id=$1 FOR UPDATE', [user_id]
+          );
+          if (ur.rows[0] && ur.rows[0].rating_count > 0) {
+            const { client_rating, rating_count } = ur.rows[0];
+            const newCount = Math.max(0, rating_count - 1);
+            const newRating = newCount === 0
+              ? 5.00
+              : ((client_rating * rating_count) - client_rating_given) / newCount;
+            await client.query(
+              'UPDATE users SET client_rating=$1, rating_count=$2 WHERE id=$3',
+              [Math.round(newRating * 100) / 100, newCount, user_id]
+            );
+          }
+          await client.query(
+            'UPDATE bookings SET client_rated_at=NULL, client_rating_given=NULL, client_rating_comment=NULL WHERE id=$1',
+            [appeal.booking_id]
+          );
+        }
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json({ success: true });
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch {}
+    console.error(err);
+    res.status(500).json({ error: 'Ошибка' });
+  } finally { client.release(); }
 });
 
 // ═══════════════════════════════════════════════════════
