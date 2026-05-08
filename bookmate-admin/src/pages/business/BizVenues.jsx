@@ -2,6 +2,20 @@ import { useState, useEffect, useRef } from 'react';
 import { api } from '../../api';
 import Modal from '../../components/Modal';
 
+function formatPhone(raw) {
+  let d = raw.replace(/\D/g, '');
+  if (d.startsWith('8')) d = '7' + d.slice(1);
+  if (d.length > 0 && !d.startsWith('7')) d = '7' + d;
+  d = d.slice(0, 11);
+  if (!d) return '';
+  let r = '+7';
+  if (d.length > 1) r += ' ' + d.slice(1, 4);
+  if (d.length > 4) r += ' ' + d.slice(4, 7);
+  if (d.length > 7) r += ' ' + d.slice(7, 9);
+  if (d.length > 9) r += ' ' + d.slice(9, 11);
+  return r;
+}
+
 const EMPTY = { name:'',category:'',location:'',description:'',price_range:'',open_time:'10:00',close_time:'22:00',phone:'',is_active:true };
 
 export default function BizVenues() {
@@ -29,7 +43,7 @@ export default function BizVenues() {
   };
 
   const openEdit = v => {
-    setForm({...EMPTY,...v, is_active:v.is_active!==false});
+    setForm({...EMPTY,...v, is_active:v.is_active!==false, phone: v.phone ? formatPhone(v.phone) : ''});
     setImageFile(null);
     setImagePreview(v.image_url || '');
     setModal(v);
@@ -103,7 +117,7 @@ export default function BizVenues() {
           </div>
 
           <div className="form-row"><div className="form-group"><label className="form-label">Открытие</label><input className="form-input" type="time" value={form.open_time} onChange={e=>set('open_time',e.target.value)}/></div><div className="form-group"><label className="form-label">Закрытие</label><input className="form-input" type="time" value={form.close_time} onChange={e=>set('close_time',e.target.value)}/></div></div>
-          <div className="form-row"><div className="form-group"><label className="form-label">Ценовой диапазон</label><input className="form-input" value={form.price_range||''} onChange={e=>set('price_range',e.target.value)} placeholder="от 2000 до 5000 ₸"/></div><div className="form-group"><label className="form-label">Телефон</label><input className="form-input" value={form.phone||''} onChange={e=>set('phone',e.target.value)}/></div></div>
+          <div className="form-row"><div className="form-group"><label className="form-label">Ценовой диапазон</label><input className="form-input" value={form.price_range||''} onChange={e=>set('price_range',e.target.value)} placeholder="от 2000 до 5000 ₸"/></div><div className="form-group"><label className="form-label">Телефон</label><input className="form-input" value={form.phone||''} placeholder="+7 777 777 77 77" maxLength={16} onChange={e=>set('phone',formatPhone(e.target.value))}/></div></div>
           {modal!=='create'&&<div className="form-group flex items-center gap-2" style={{marginTop:8}}><label className="switch"><input type="checkbox" checked={form.is_active} onChange={e=>set('is_active',e.target.checked)}/><span className="slider"/></label><span className="form-label" style={{marginBottom:0}}>Активно</span></div>}
         </Modal>
       )}

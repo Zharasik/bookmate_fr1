@@ -1,7 +1,7 @@
 const { ALLOWED_USER_ROLES } = require('./auth');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_REGEX = /^\+?[1-9]\d{9,14}$/;
+const PHONE_REGEX = /^\+7\d{10}$/;
 const FAKE_EMAIL_DOMAINS = new Set([
   'example.com',
   'example.org',
@@ -53,23 +53,25 @@ function validateEmail(value) {
 }
 
 function normalizePhone(value) {
-  if (value === undefined || value === null) {
-    return null;
-  }
-
+  if (value === undefined || value === null) return null;
   const raw = normalizeString(value);
-  if (!raw) {
+  if (!raw) return null;
+
+  const digits = raw.replace(/\D/g, '');
+
+  let normalized;
+  if (digits.startsWith('7') && digits.length === 11) {
+    normalized = `+${digits}`;
+  } else if (digits.startsWith('8') && digits.length === 11) {
+    normalized = `+7${digits.slice(1)}`;
+  } else if (digits.length === 10) {
+    normalized = `+7${digits}`;
+  } else {
     return null;
   }
 
-  const normalized = raw.replace(/[^\d+]/g, '');
-  const digitsOnly = normalized.startsWith('+') ? normalized.slice(1) : normalized;
-
-  if (!digitsOnly || !PHONE_REGEX.test(`+${digitsOnly}`)) {
-    return null;
-  }
-
-  return `+${digitsOnly}`;
+  if (!PHONE_REGEX.test(normalized)) return null;
+  return normalized;
 }
 
 function validatePhone(value, { required = false } = {}) {
@@ -82,7 +84,7 @@ function validatePhone(value, { required = false } = {}) {
     if (value === undefined || value === null || normalizeString(value) === '') {
       return { value: null, error: null };
     }
-    return { value: null, error: 'Укажите корректный телефон в международном формате' };
+    return { value: null, error: 'Укажите телефон в формате +7 777 777 77 77' };
   }
 
   return { value: phone, error: null };
