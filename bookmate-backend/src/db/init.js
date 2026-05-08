@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   end_time   TEXT,
   guests     INTEGER DEFAULT 1,
   total_price INTEGER DEFAULT 0,
-  status     TEXT DEFAULT 'pending' CHECK (status IN ('upcoming','pending','confirmed','completed','cancelled')),
+  status     TEXT DEFAULT 'pending' CHECK (status IN ('upcoming','pending','confirmed','in_progress','completed','cancelled')),
   client_rated_at TIMESTAMPTZ,
   client_rating_given INTEGER CHECK (client_rating_given BETWEEN 1 AND 5),
   client_rating_comment TEXT,
@@ -253,9 +253,41 @@ DO $$ BEGIN
   ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_status_check;
   ALTER TABLE bookings
     ADD CONSTRAINT bookings_status_check
-    CHECK (status IN ('upcoming','pending','confirmed','completed','cancelled'));
+    CHECK (status IN ('upcoming','pending','confirmed','in_progress','completed','cancelled'));
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
+
+-- Add service_id to bookings
+DO $$ BEGIN
+  ALTER TABLE bookings ADD COLUMN IF NOT EXISTS service_id UUID REFERENCES services(id) ON DELETE SET NULL;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+-- Reviews enhancements: photo, reasons array, unique per user+venue
+DO $$ BEGIN
+  ALTER TABLE reviews ADD COLUMN IF NOT EXISTS photo_url TEXT;
+  ALTER TABLE reviews ADD COLUMN IF NOT EXISTS bad_reason TEXT;
+  ALTER TABLE reviews ADD COLUMN IF NOT EXISTS reasons TEXT[] DEFAULT '{}';
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS reviews_one_per_user_venue_idx
+  ON reviews (user_id, venue_id);
+
+-- Appeals: flag venue reviews or dispute client ratings
+CREATE TABLE IF NOT EXISTS review_appeals (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  type        TEXT NOT NULL DEFAULT 'venue_review'
+                CHECK (type IN ('venue_review','client_rating')),
+  review_id   UUID REFERENCES reviews(id) ON DELETE CASCADE,
+  booking_id  UUID REFERENCES bookings(id) ON DELETE CASCADE,
+  reporter_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  reason      TEXT,
+  status      TEXT DEFAULT 'pending'
+                CHECK (status IN ('pending','approved','dismissed')),
+  admin_note  TEXT,
+  created_at  TIMESTAMPTZ DEFAULT now()
+);
 
 -- Add duration (minutes) to venue_slots
 DO $$ BEGIN

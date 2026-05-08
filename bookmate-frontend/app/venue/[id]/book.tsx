@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
-  ChevronLeft, MapPin, Minus, Plus, CheckCircle, XCircle, Clock, AlertTriangle,
+  ChevronLeft, MapPin, Minus, Plus, CheckCircle, XCircle, Clock, AlertTriangle, Wrench,
 } from 'lucide-react-native';
 import { useTheme, useT } from '../../../hooks/useHelpers';
 import { api } from '../../../services/api';
@@ -115,17 +115,23 @@ export default function BookScreen() {
   const [loadingAvail, setLoadingAvail] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  const [services, setServices] = useState<any[]>([]);
+  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
+
   const [selectedDateIdx, setSelectedDateIdx] = useState(0);
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [units, setUnits] = useState(1); // how many duration-units to book
+  const [units, setUnits] = useState(1);
   const [guests, setGuests] = useState(1);
 
-  // ── Load venue on mount
+  // ── Load venue + services on mount
   useEffect(() => {
     if (!id) return;
-    api.getVenue(id)
-      .then((v) => setVenue(v))
+    Promise.all([
+      api.getVenue(id),
+      api.getServices(id).catch(() => []),
+    ])
+      .then(([v, sv]) => { setVenue(v); setServices(sv); })
       .catch(() => { })
       .finally(() => setLoadingVenue(false));
   }, [id]);
@@ -269,11 +275,12 @@ export default function BookScreen() {
       await api.createBooking({
         venue_id: venue.id,
         slot_id: selectedSlotId || undefined,
+        service_id: selectedServiceId || undefined,
         date: dates[selectedDateIdx].iso,
         time: selectedTime,
         duration: totalDuration,
         guests,
-      });
+      } as any);
       Alert.alert(
         '✓ ' + t('bookingConfirmed'),
         `Бронь ${dates[selectedDateIdx].day} ${dates[selectedDateIdx].date} ${dates[selectedDateIdx].month} · ${selectedTime}–${endTime} · ${formatDuration(totalDuration)} создана и ожидает подтверждения.`,
@@ -416,6 +423,46 @@ export default function BookScreen() {
           </>
         )}
 
+        {/* Service selection */}
+        {services.length > 0 && (
+          <>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 24, marginBottom: 4 }}>
+              <Wrench size={18} color={c.primary} />
+              <Text style={[styles.secTitle, { color: c.text, marginBottom: 0, marginLeft: 8, flex: 1 }]}>Выберите услугу</Text>
+            </View>
+            <Text style={[styles.hint, { color: c.textMuted }]}>Необязательно — выберите услугу, которая вас интересует</Text>
+            <View style={styles.slotGrid}>
+              {services.map((svc) => {
+                const sel = selectedServiceId === svc.id;
+                return (
+                  <Pressable
+                    key={svc.id}
+                    onPress={() => setSelectedServiceId(sel ? null : svc.id)}
+                    style={[styles.slotCard, {
+                      backgroundColor: sel ? c.primary : c.card,
+                      borderColor: sel ? c.primary : c.border,
+                    }]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <CheckCircle size={16} color={sel ? '#fff' : c.success} />
+                        <Text style={[styles.slotName, { color: sel ? '#fff' : c.text }]} numberOfLines={1}>{svc.name}</Text>
+                      </View>
+                      {svc.description ? (
+                        <Text style={[styles.slotDesc, { color: sel ? 'rgba(255,255,255,0.8)' : c.textSecondary }]} numberOfLines={1}>{svc.description}</Text>
+                      ) : null}
+                      <Text style={[styles.slotMeta, { color: sel ? 'rgba(255,255,255,0.7)' : c.textMuted }]}>
+                        {svc.price > 0 ? `${svc.price.toLocaleString()} ₸` : 'Бесплатно'}
+                        {svc.duration ? ` · ${svc.duration} мин` : ''}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </>
+        )}
+
         {/* Time grid — shown only after slot selected (or if no slots) */}
         {(selectedSlotId || slotData.length === 0) && (
           <>
@@ -535,6 +582,14 @@ export default function BookScreen() {
                   : ' · бесплатно'}
               </Text>
             )}
+            {selectedServiceId && (() => {
+              const svc = services.find(s => s.id === selectedServiceId);
+              return svc ? (
+                <Text style={[styles.summaryRow, { color: c.textSecondary }]}>
+                  🔧 {svc.name}{svc.price > 0 ? ` · ${svc.price.toLocaleString()} ₸` : ''}
+                </Text>
+              ) : null;
+            })()}
             <Text style={[styles.summaryRow, { color: c.textSecondary }]}>
               👥 {guests} гост{guests === 1 ? 'ь' : 'я'}
             </Text>
@@ -544,9 +599,17 @@ export default function BookScreen() {
 
       {/* Confirm button */}
       <View style={[styles.footer, { backgroundColor: c.card, borderTopColor: c.border }]}>
-        <Pressable onPress={handleConfirm} disabled={submitting || !selectedTime || selectedTimeOverflows} style={styles.confirmWrap}>
+        <Pressable
+          onPress={handleConfirm}
+          disabled={submitting || (slotData.length > 0 && !selectedSlotId) || !selectedTime || selectedTimeOverflows}
+          style={styles.confirmWrap}
+        >
           <LinearGradient
-            colors={submitting || !selectedTime || selectedTimeOverflows ? ['#93C5FD', '#93C5FD'] : ['#2563EB', '#3B82F6']}
+            colors={
+              submitting || (slotData.length > 0 && !selectedSlotId) || !selectedTime || selectedTimeOverflows
+                ? ['#93C5FD', '#93C5FD']
+                : ['#2563EB', '#3B82F6']
+            }
             style={styles.confirmBtn}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
@@ -554,11 +617,13 @@ export default function BookScreen() {
             {submitting
               ? <ActivityIndicator color="#fff" />
               : <Text style={styles.confirmText}>
-                {!selectedTime
-                  ? 'Выберите место и время'
-                  : selectedTimeOverflows
-                    ? 'Превышает время закрытия'
-                    : `Забронировать · ${formatDuration(totalDuration)}`}
+                {slotData.length > 0 && !selectedSlotId
+                  ? 'Сначала выберите место'
+                  : !selectedTime
+                    ? 'Выберите время'
+                    : selectedTimeOverflows
+                      ? 'Превышает время закрытия'
+                      : `Забронировать · ${formatDuration(totalDuration)}`}
               </Text>}
           </LinearGradient>
         </Pressable>
