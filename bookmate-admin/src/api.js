@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:3000';
+const API_URL = 'https://bookmate-fr1-3dvy.onrender.com';
 
 function getToken() { return localStorage.getItem('admin_token'); }
 
