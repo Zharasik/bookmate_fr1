@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator,
-  TextInput, Modal, Alert, RefreshControl, Switch,
+  TextInput, Modal, Alert, RefreshControl, Switch, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ChevronLeft, Plus, Edit2, Trash2, X, Clock } from 'lucide-react-native';
+import { ChevronLeft, Plus, Edit2, Trash2, X, Clock, Camera } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../hooks/useHelpers';
 import { api } from '../../services/api';
 
@@ -42,6 +43,7 @@ export default function SlotsScreen() {
   const [form, setForm] = useState({
     name: '', description: '', price: '', capacity: '1', duration: 60, is_active: true,
   });
+  const [imageUri, setImageUri] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!venueId) return;
@@ -54,6 +56,7 @@ export default function SlotsScreen() {
   const openCreate = () => {
     setEditing(null);
     setForm({ name: '', description: '', price: '', capacity: '1', duration: 60, is_active: true });
+    setImageUri(null);
     setShowModal(true);
   };
 
@@ -67,7 +70,21 @@ export default function SlotsScreen() {
       duration: slot.duration || 60,
       is_active: slot.is_active,
     });
+    setImageUri(slot.image_url || null);
     setShowModal(true);
+  };
+
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') { Alert.alert('Нет доступа', 'Разрешите доступ к галерее в настройках.'); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.85,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setImageUri(result.assets[0].uri);
+    }
   };
 
   const handleSave = async () => {
@@ -82,10 +99,13 @@ export default function SlotsScreen() {
         duration: form.duration,
         is_active: form.is_active,
       };
+      const isUrl = imageUri?.startsWith('http');
+      const fileUri = (!isUrl && imageUri) ? imageUri : undefined;
+      if (isUrl) (data as any).image_url = imageUri;
       if (editing) {
-        await api.business.updateSlot(editing.id, data);
+        await api.business.updateSlot(editing.id, data, fileUri);
       } else {
-        await api.business.createSlot(venueId, data);
+        await api.business.createSlot(venueId, data, fileUri);
       }
       setShowModal(false);
       load();
@@ -135,6 +155,9 @@ export default function SlotsScreen() {
           >
             {slots.map((slot) => (
               <View key={slot.id} style={[styles.slotCard, { backgroundColor: c.card }]}>
+                {slot.image_url ? (
+                  <Image source={{ uri: slot.image_url }} style={styles.slotThumb} resizeMode="cover" />
+                ) : null}
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <Text style={[styles.slotName, { color: c.text }]}>{slot.name}</Text>
@@ -210,6 +233,33 @@ export default function SlotsScreen() {
                 placeholderTextColor={c.textMuted}
                 value={form.description}
                 onChangeText={(v) => setForm((p) => ({ ...p, description: v }))}
+              />
+
+              <Text style={[styles.fieldLabel, { color: c.text }]}>Фото места</Text>
+              {imageUri ? (
+                <View style={{ marginBottom: 8 }}>
+                  <Image source={{ uri: imageUri }} style={styles.imagePreview} resizeMode="cover" />
+                  <Pressable style={[styles.removeImg, { backgroundColor: c.bg, borderColor: c.border }]} onPress={() => setImageUri(null)}>
+                    <X size={14} color={c.textMuted} />
+                    <Text style={{ color: c.textMuted, fontSize: 13, marginLeft: 4 }}>Убрать фото</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+              <Pressable style={[styles.pickBtn, { backgroundColor: c.bg, borderColor: c.border }]} onPress={pickImage}>
+                <Camera size={18} color={c.primary} />
+                <Text style={{ color: c.primary, fontWeight: '600', fontSize: 14, marginLeft: 8 }}>
+                  {imageUri && !imageUri.startsWith('http') ? 'Выбрать другое фото' : 'Выбрать из галереи'}
+                </Text>
+              </Pressable>
+              <Text style={[styles.fieldHint, { color: c.textMuted, marginTop: 6 }]}>или вставьте ссылку:</Text>
+              <TextInput
+                style={[styles.field, { backgroundColor: c.bg, borderColor: c.border, color: c.text, marginTop: 4 }]}
+                placeholder="https://example.com/photo.jpg"
+                placeholderTextColor={c.textMuted}
+                value={imageUri?.startsWith('http') ? imageUri : ''}
+                onChangeText={(v) => setImageUri(v || null)}
+                autoCapitalize="none"
+                keyboardType="url"
               />
 
               <Text style={[styles.fieldLabel, { color: c.text }]}>Длительность одного слота *</Text>
@@ -315,4 +365,8 @@ const styles = StyleSheet.create({
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 },
   saveBtn: { marginTop: 24, paddingVertical: 16, borderRadius: 14, alignItems: 'center' },
   saveTxt: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  imagePreview: { width: '100%', height: 160, borderRadius: 12, marginBottom: 8 },
+  pickBtn: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, borderStyle: 'dashed' },
+  removeImg: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, alignSelf: 'flex-start' },
+  slotThumb: { width: 64, height: 64, borderRadius: 10 },
 });

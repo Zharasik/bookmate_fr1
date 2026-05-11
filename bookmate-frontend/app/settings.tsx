@@ -9,6 +9,7 @@ import { useRouter } from 'expo-router';
 import { useStore } from '../hooks/useStore';
 import { useTheme, useT } from '../hooks/useHelpers';
 import { api } from '../services/api';
+import { formatPhone } from '../constants/phoneUtils';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -22,7 +23,7 @@ export default function SettingsScreen() {
   const updateUser = useStore((s) => s.updateUser);
 
   const [name, setName] = useState(user?.name || '');
-  const [phone, setPhone] = useState(user?.phone || '');
+  const [phone, setPhone] = useState(user?.phone ? formatPhone(user.phone) : '');
   const [savingProfile, setSavingProfile] = useState(false);
 
   const [currentPass, setCurrentPass] = useState('');
@@ -119,10 +120,11 @@ export default function SettingsScreen() {
             <TextInput
               style={[styles.fieldInput, { color: c.text }]}
               value={phone}
-              onChangeText={setPhone}
-              placeholder="Телефон"
+              onChangeText={(v) => setPhone(formatPhone(v))}
+              placeholder="+7 777 777 77 77"
               placeholderTextColor={c.textMuted}
               keyboardType="phone-pad"
+              maxLength={16}
             />
           </View>
 

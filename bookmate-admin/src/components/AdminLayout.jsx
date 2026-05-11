@@ -5,7 +5,6 @@ const NAV = [
   { to: '/admin/applications', icon: '📋', label: 'Заявки', badgeKey: 'pending_applications' },
   { to: '/admin/venues',       icon: '🏢', label: 'Заведения' },
   { to: '/admin/users',        icon: '👥', label: 'Пользователи' },
-  { to: '/admin/bookings',     icon: '📅', label: 'Бронирования' },
   { to: '/admin/reviews',      icon: '⭐', label: 'Отзывы' },
 ];
 
@@ -13,7 +12,7 @@ export default function AdminLayout() {
   const navigate = useNavigate();
   const user = (() => { try { return JSON.parse(localStorage.getItem('admin_user') || '{}'); } catch { return {}; } })();
   const path = window.location.pathname.split('/').slice(0, 3).join('/');
-  const title = { '/admin/dashboard': 'Дашборд', '/admin/applications': 'Заявки', '/admin/venues': 'Заведения', '/admin/users': 'Пользователи', '/admin/bookings': 'Бронирования', '/admin/reviews': 'Отзывы' }[path] || 'Система';
+  const title = { '/admin/dashboard': 'Дашборд', '/admin/applications': 'Заявки', '/admin/venues': 'Заведения', '/admin/users': 'Пользователи', '/admin/reviews': 'Отзывы' }[path] || 'Система';
 
   const logout = () => { localStorage.removeItem('admin_token'); localStorage.removeItem('admin_user'); navigate('/login'); };
 

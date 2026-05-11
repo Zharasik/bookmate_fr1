@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '../../api';
 import Modal from '../../components/Modal';
 
@@ -13,22 +13,46 @@ export default function BizSlots() {
   const [loading, setLoading] = useState(false);
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState(EMPTY);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const fileRef = useRef();
 
   useEffect(()=>{ api.biz.getVenues().then(v=>{ setVenues(v); if(v.length>0)setSelectedVenue(v[0].id); }).catch(()=>{}); },[]);
   useEffect(()=>{ if(!selectedVenue)return; setLoading(true); api.biz.getSlots(selectedVenue).then(setSlots).catch(()=>{}).finally(()=>setLoading(false)); },[selectedVenue]);
 
   const set = (k,v)=>setForm(p=>({...p,[k]:v}));
-  const openCreate=()=>{ setForm(EMPTY); setModal('create'); setError(''); };
-  const openEdit=s=>{ setForm({...EMPTY,...s}); setModal(s); setError(''); };
+
+  const openCreate=()=>{
+    setForm(EMPTY);
+    setImageFile(null);
+    setImagePreview('');
+    setModal('create');
+    setError('');
+  };
+
+  const openEdit=s=>{
+    setForm({...EMPTY,...s});
+    setImageFile(null);
+    setImagePreview(s.image_url || '');
+    setModal(s);
+    setError('');
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
 
   const handleSave = async()=>{
     if(!form.name){setError('Название обязательно');return;}
     setSaving(true);setError('');
     try{
-      if(modal==='create') await api.biz.createSlot(selectedVenue,form);
-      else await api.biz.updateSlot(modal.id,form);
+      if(modal==='create') await api.biz.createSlot(selectedVenue, form, imageFile);
+      else await api.biz.updateSlot(modal.id, form, imageFile);
       setModal(null);
       api.biz.getSlots(selectedVenue).then(setSlots);
     }catch(e){setError(e.message);}finally{setSaving(false);}
@@ -59,20 +83,23 @@ export default function BizSlots() {
       {loading?<div className="loading">Загрузка...</div>:(
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:14}}>
           {slots.map(s=>(
-            <div key={s.id} className="card card-body">
-              <div className="flex items-center gap-2" style={{marginBottom:8}}>
-                <span className="text-bold" style={{flex:1,fontSize:15}}>{s.name}</span>
-                <span className={`badge ${s.is_active?'badge-green':'badge-gray'}`} style={{fontSize:11}}>{s.is_active?'Активен':'Выкл'}</span>
-              </div>
-              {s.description&&<div className="text-sm text-muted" style={{marginBottom:8}}>{s.description}</div>}
-              <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12}}>
-                <span className="tag" style={{background:'#EDE9FE',color:'#5B21B6'}}>⏱ {fmtDur(s.duration||60)}</span>
-                <span className="tag" style={{background:'#D1FAE5',color:'#065F46'}}>{s.price>0?`${s.price.toLocaleString()} ₸/${fmtDur(s.duration||60)}`:'Бесплатно'}</span>
-                {s.capacity>1&&<span className="tag">👥 {s.capacity} чел.</span>}
-              </div>
-              <div className="flex gap-2">
-                <button className="btn btn-ghost btn-sm" style={{flex:1}} onClick={()=>openEdit(s)}>✏️ Изменить</button>
-                <button className="btn btn-danger btn-sm" onClick={()=>del(s)}>🗑️</button>
+            <div key={s.id} className="card">
+              {s.image_url&&<img src={s.image_url} alt="" style={{width:'100%',height:130,objectFit:'cover',borderRadius:'16px 16px 0 0'}}/>}
+              <div className="card-body">
+                <div className="flex items-center gap-2" style={{marginBottom:8}}>
+                  <span className="text-bold" style={{flex:1,fontSize:15}}>{s.name}</span>
+                  <span className={`badge ${s.is_active?'badge-green':'badge-gray'}`} style={{fontSize:11}}>{s.is_active?'Активен':'Выкл'}</span>
+                </div>
+                {s.description&&<div className="text-sm text-muted" style={{marginBottom:8}}>{s.description}</div>}
+                <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12}}>
+                  <span className="tag" style={{background:'#EDE9FE',color:'#5B21B6'}}>⏱ {fmtDur(s.duration||60)}</span>
+                  <span className="tag" style={{background:'#D1FAE5',color:'#065F46'}}>{s.price>0?`${s.price.toLocaleString()} ₸/${fmtDur(s.duration||60)}`:'Бесплатно'}</span>
+                  {s.capacity>1&&<span className="tag">👥 {s.capacity} чел.</span>}
+                </div>
+                <div className="flex gap-2">
+                  <button className="btn btn-ghost btn-sm" style={{flex:1}} onClick={()=>openEdit(s)}>✏️ Изменить</button>
+                  <button className="btn btn-danger btn-sm" onClick={()=>del(s)}>🗑️</button>
+                </div>
               </div>
             </div>
           ))}
@@ -92,6 +119,20 @@ export default function BizSlots() {
           {error&&<div className="error-msg">{error}</div>}
           <div className="form-group"><label className="form-label">Название *</label><input className="form-input" value={form.name} onChange={e=>set('name',e.target.value)} placeholder="Стол #1, Дорожка 3, ПК №5..."/></div>
           <div className="form-group"><label className="form-label">Описание / характеристики</label><input className="form-input" value={form.description||''} onChange={e=>set('description',e.target.value)} placeholder="VIP-зона, у окна, мастер: Алибек..."/></div>
+
+          <div className="form-group">
+            <label className="form-label">Фото места</label>
+            {imagePreview && (
+              <div style={{marginBottom:8,position:'relative'}}>
+                <img src={imagePreview} alt="preview" style={{width:'100%',maxHeight:150,objectFit:'cover',borderRadius:10,display:'block'}}/>
+                <button type="button" onClick={()=>{setImageFile(null);setImagePreview('');set('image_url','');if(fileRef.current)fileRef.current.value='';}} style={{position:'absolute',top:6,right:6,background:'rgba(0,0,0,0.55)',color:'#fff',border:'none',borderRadius:'50%',width:26,height:26,cursor:'pointer',fontSize:16,lineHeight:'26px',textAlign:'center'}}>×</button>
+              </div>
+            )}
+            <input ref={fileRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp" onChange={handleFileChange} style={{display:'block',marginBottom:8}}/>
+            <input className="form-input" value={imageFile ? '' : (form.image_url||'')} placeholder="или вставьте ссылку на фото https://..." onChange={e=>{set('image_url',e.target.value);setImagePreview(e.target.value);setImageFile(null);if(fileRef.current)fileRef.current.value='';}} disabled={!!imageFile}/>
+            <p className="form-hint" style={{marginTop:4}}>Загрузите файл или вставьте URL · JPG, PNG, WebP · до 5 МБ</p>
+          </div>
+
           <div className="form-group">
             <label className="form-label">Длительность одного слота *</label>
             <p className="form-hint">Клиент сможет бронировать 1, 2, 3... таких интервала подряд</p>

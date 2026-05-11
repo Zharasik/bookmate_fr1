@@ -13,6 +13,31 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
   return data as T;
 }
 
+async function requestForm<T>(path: string, method: string, formData: FormData): Promise<T> {
+  const token = useStore.getState().token;
+  const headers: Record<string, string> = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await fetch(`${API_URL}${path}`, { method, body: formData, headers });
+  let data: any;
+  const text = await res.text();
+  try { data = text ? JSON.parse(text) : {}; } catch { data = { error: text }; }
+  if (!res.ok) throw new Error(data?.error || `Ошибка ${res.status}`);
+  return data as T;
+}
+
+function buildFormData(data: Record<string, any>, imageUri?: string | null): FormData {
+  const fd = new FormData();
+  Object.entries(data).forEach(([k, v]) => {
+    if (v !== undefined && v !== null) fd.append(k, String(v));
+  });
+  if (imageUri) {
+    const ext = imageUri.split('.').pop()?.toLowerCase() || 'jpg';
+    const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+    fd.append('image', { uri: imageUri, name: `photo.${ext}`, type: mime } as any);
+  }
+  return fd;
+}
+
 export const api = {
   register: (email: string, password: string, name: string, phone?: string, role?: string) =>
     request<{ userId: string; email: string; message: string; dev_code?: string }>('/api/auth/register', {
@@ -89,11 +114,15 @@ export const api = {
   business: {
     getStats: () => request<any>('/api/business/stats'),
     getVenues: () => request<any[]>('/api/business/venues'),
-    createVenue: (data: any) => request<any>('/api/business/venues', { method: 'POST', body: JSON.stringify(data) }),
-    updateVenue: (id: string, data: any) => request<any>(`/api/business/venues/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    createVenue: (data: any, imageUri?: string | null) =>
+      requestForm<any>('/api/business/venues', 'POST', buildFormData(data, imageUri)),
+    updateVenue: (id: string, data: any, imageUri?: string | null) =>
+      requestForm<any>(`/api/business/venues/${id}`, 'PUT', buildFormData(data, imageUri)),
     getSlots: (venueId: string) => request<any[]>(`/api/business/venues/${venueId}/slots`),
-    createSlot: (venueId: string, data: any) => request<any>(`/api/business/venues/${venueId}/slots`, { method: 'POST', body: JSON.stringify(data) }),
-    updateSlot: (slotId: string, data: any) => request<any>(`/api/business/slots/${slotId}`, { method: 'PUT', body: JSON.stringify(data) }),
+    createSlot: (venueId: string, data: any, imageUri?: string | null) =>
+      requestForm<any>(`/api/business/venues/${venueId}/slots`, 'POST', buildFormData(data, imageUri)),
+    updateSlot: (slotId: string, data: any, imageUri?: string | null) =>
+      requestForm<any>(`/api/business/slots/${slotId}`, 'PUT', buildFormData(data, imageUri)),
     deleteSlot: (slotId: string) => request<any>(`/api/business/slots/${slotId}`, { method: 'DELETE' }),
     getBookings: (params?: { status?: string; venue_id?: string; date?: string }) => {
       const qs = new URLSearchParams(params as any).toString();

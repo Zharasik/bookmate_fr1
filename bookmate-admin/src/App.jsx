@@ -7,7 +7,6 @@ import BizLayout from './components/BizLayout';
 import Dashboard from './pages/admin/Dashboard';
 import Venues from './pages/admin/Venues';
 import Users from './pages/admin/Users';
-import AdminBookings from './pages/admin/Bookings';
 import Applications from './pages/admin/Applications';
 import Reviews from './pages/admin/Reviews';
 
@@ -56,7 +55,6 @@ export default function App() {
           <Route path="dashboard"    element={<Dashboard />} />
           <Route path="venues"       element={<Venues />} />
           <Route path="users"        element={<Users />} />
-          <Route path="bookings"     element={<AdminBookings />} />
           <Route path="applications" element={<Applications />} />
           <Route path="reviews"      element={<Reviews />} />
         </Route>

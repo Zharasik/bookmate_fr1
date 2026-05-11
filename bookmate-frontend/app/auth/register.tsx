@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { Eye, EyeOff, Mail, Lock, User, Phone } from 'lucide-react-native';
 import { useTheme, useT } from '../../hooks/useHelpers';
 import { api } from '../../services/api';
+import { formatPhone } from '../../constants/phoneUtils';
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -56,7 +57,7 @@ export default function RegisterScreen() {
             </View>
             <View style={[styles.inputWrap, { backgroundColor: c.inputBg, borderColor: c.border }]}>
               <Phone size={18} color={c.textMuted} />
-              <TextInput style={[styles.input, { color: c.text }]} placeholder="Телефон (необязательно)" placeholderTextColor={c.textMuted} keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
+              <TextInput style={[styles.input, { color: c.text }]} placeholder="+7 777 777 77 77" placeholderTextColor={c.textMuted} keyboardType="phone-pad" value={phone} onChangeText={(v) => setPhone(formatPhone(v))} maxLength={16} />
             </View>
             <View style={[styles.inputWrap, { backgroundColor: c.inputBg, borderColor: c.border }]}>
               <Lock size={18} color={c.textMuted} />
