@@ -54,6 +54,10 @@ export const api = {
     request<{ message: string; dev_code?: string }>('/api/auth/resend-verification', { method: 'POST', body: JSON.stringify({ userId }) }),
   login: (email: string, password: string) =>
     request<{ token: string; user: any }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  forgotPassword: (email: string) =>
+    request<{ message: string; dev_code?: string }>('/api/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
+  resetPassword: (email: string, code: string, newPassword: string) =>
+    request<{ message: string }>('/api/auth/reset-password', { method: 'POST', body: JSON.stringify({ email, code, newPassword }) }),
   getMe: () => request<any>('/api/auth/me'),
   updateProfile: (data: { name?: string; phone?: string; avatar_url?: string }) =>
     request<any>('/api/auth/me', { method: 'PUT', body: JSON.stringify(data) }),

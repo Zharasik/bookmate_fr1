@@ -57,7 +57,11 @@ export default function LoginScreen() {
               <TextInput style={[styles.input, { color: c.text }]} placeholder={t('password')} placeholderTextColor={c.textMuted} secureTextEntry={!showPass} value={password} onChangeText={setPassword} />
               <Pressable onPress={() => setShowPass(!showPass)}>{showPass ? <EyeOff size={18} color={c.textMuted} /> : <Eye size={18} color={c.textMuted} />}</Pressable>
             </View>
-            <Pressable onPress={handleLogin} disabled={loading} style={{ marginTop: 8 }}>
+            <Pressable onPress={() => router.push('/auth/forgot-password' as any)} style={styles.forgotWrap}>
+              <Text style={[styles.forgotText, { color: c.primary }]}>Забыли пароль?</Text>
+            </Pressable>
+
+            <Pressable onPress={handleLogin} disabled={loading} style={{ marginTop: 4 }}>
               <LinearGradient colors={loading ? ['#93C5FD', '#93C5FD'] : ['#2563EB', '#3B82F6']} style={styles.btn} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
                 {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>{t('login')}</Text>}
               </LinearGradient>
@@ -96,6 +100,8 @@ const styles = StyleSheet.create({
   input: { flex: 1, fontSize: 16 },
   btn: { height: 54, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   btnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  forgotWrap: { alignSelf: 'flex-end', marginTop: 8, marginBottom: 4 },
+  forgotText: { fontSize: 13, fontWeight: '600' },
   link: { marginTop: 20, alignItems: 'center' },
   linkText: { fontSize: 15 },
   demoBox: { marginTop: 24, borderRadius: 14, padding: 16, borderWidth: 1 },
