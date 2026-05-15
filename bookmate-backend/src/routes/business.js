@@ -114,6 +114,7 @@ router.put("/venues/:id", upload.single("image"), async (req, res) => {
     const image_url = req.file
       ? `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`
       : req.body.image_url || null;
+    const isActiveParsed = is_active === undefined ? null : (is_active === 'false' || is_active === false) ? false : true;
 
     const check = await pool.query(
       "SELECT id FROM venues WHERE id=$1 AND owner_id=$2",
@@ -134,20 +135,20 @@ router.put("/venues/:id", upload.single("image"), async (req, res) => {
        WHERE id=$15 AND owner_id=$16
        RETURNING *`,
       [
-        name,
-        category,
-        location,
-        city,
-        description,
+        name || null,
+        category || null,
+        location || null,
+        city || null,
+        description || null,
         image_url,
-        price_range,
-        latitude,
-        longitude,
-        amenities,
-        open_time,
-        close_time,
-        phone,
-        is_active,
+        price_range || null,
+        latitude || null,
+        longitude || null,
+        amenities || null,
+        open_time || null,
+        close_time || null,
+        phone || null,
+        isActiveParsed,
         req.params.id,
         req.userId,
       ],
