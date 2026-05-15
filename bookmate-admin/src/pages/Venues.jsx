@@ -8,7 +8,7 @@ export default function Venues() {
   const [venues, setVenues] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [modal, setModal] = useState(null); // null | 'create' | venue object
+  const [modal, setModal] = useState(null);
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');

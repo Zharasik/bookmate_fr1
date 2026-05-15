@@ -26,7 +26,6 @@ export default function BizServices() {
       setVenues(vs);
       const all = await Promise.all(vs.map(v=>api.biz.getServices(v.id).catch(()=>[])));
       const svcs = all.flat().map((s,_,arr)=>s);
-      // attach venue_name
       const venueMap = Object.fromEntries(vs.map(v=>[v.id,v.name]));
       setServices(svcs.map(s=>({...s, venue_name: venueMap[s.venue_id]||'—'})));
     }).catch(()=>{}).finally(()=>setLoading(false));
@@ -49,7 +48,6 @@ export default function BizServices() {
     setSaving(true);setError('');
     try{
       if(modal==='create') await api.biz.createService(form.venue_id,form);
-      // update not implemented in biz API, use admin for now — or skip
       setModal(null); reloadServices();
     }catch(e){setError(e.message);}finally{setSaving(false);}
   };

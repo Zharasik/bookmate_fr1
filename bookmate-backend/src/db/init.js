@@ -350,7 +350,6 @@ async function init() {
     await client.query(SQL);
     console.log('Tables created.');
 
-    // Only seed if empty
     const { rows } = await client.query('SELECT count(*) FROM venues');
     if (Number(rows[0].count) === 0) {
       console.log('Seeding venues...');
@@ -360,7 +359,6 @@ async function init() {
       console.log('Venues already present — skipping seed.');
     }
 
-    // Create default admin if no admins exist
     const admins = await client.query("SELECT count(*) FROM users WHERE role='admin'");
     const bcrypt = require('bcrypt');
     if (Number(admins.rows[0].count) === 0) {

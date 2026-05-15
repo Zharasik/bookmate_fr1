@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { API_URL } from '../constants/api';
 import { useStore } from '../hooks/useStore';
 
@@ -9,6 +10,10 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
   let data: any;
   const text = await res.text();
   try { data = text ? JSON.parse(text) : {}; } catch { data = { error: text }; }
+  if (res.status === 401) {
+    useStore.getState().logout();
+    router.replace('/auth/login');
+  }
   if (!res.ok) throw new Error(data?.error || `Ошибка ${res.status}`);
   return data as T;
 }

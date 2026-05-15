@@ -74,7 +74,6 @@ async function sendVerificationEmail(email, name, code) {
   return Boolean(info?.messageId);
 }
 
-// ─── REGISTER ────────────────────────────────────────────
 router.post('/register', async (req, res) => {
   try {
     const { email, password, name, phone, role } = req.body;
@@ -132,13 +131,11 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// ─── VERIFY EMAIL ─────────────────────────────────────────
 router.post('/verify-email', async (req, res) => {
   try {
     const { userId, code } = req.body;
     if (!userId || !code) return res.status(400).json({ error: 'userId и code обязательны' });
 
-    // New flow: pending registration must be confirmed before user is created
     const pending = await pool.query(
       `SELECT * FROM pending_registrations
        WHERE id=$1 AND code=$2 AND expires_at>now()
@@ -158,7 +155,6 @@ router.post('/verify-email', async (req, res) => {
       return res.json({ token: signToken(user.id, user.role), user });
     }
 
-    // Legacy flow compatibility
     const { rows } = await pool.query(
       `SELECT * FROM email_verifications WHERE user_id=$1 AND code=$2 AND used=false AND expires_at>now() ORDER BY created_at DESC LIMIT 1`,
       [userId, code]
@@ -180,7 +176,6 @@ router.post('/verify-email', async (req, res) => {
   }
 });
 
-// ─── RESEND VERIFICATION ──────────────────────────────────
 router.post('/resend-verification', async (req, res) => {
   try {
     const { userId } = req.body;
@@ -230,7 +225,6 @@ router.post('/resend-verification', async (req, res) => {
   }
 });
 
-// ─── LOGIN ────────────────────────────────────────────────
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -257,7 +251,6 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// ─── GET ME ───────────────────────────────────────────────
 router.get('/me', auth, async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -269,7 +262,6 @@ router.get('/me', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Ошибка сервера' }); }
 });
 
-// ─── UPDATE PROFILE ───────────────────────────────────────
 router.put('/me', auth, async (req, res) => {
   try {
     const { name, phone, avatar_url } = req.body;
@@ -282,7 +274,6 @@ router.put('/me', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Ошибка сервера' }); }
 });
 
-// ─── CHANGE PASSWORD ──────────────────────────────────────
 router.post('/change-password', auth, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;

@@ -15,7 +15,6 @@ router.get('/venue/:venueId', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Ошибка' }); }
 });
 
-// All active promotions (for home feed)
 router.get('/', async (_req, res) => {
   try {
     const { rows } = await pool.query(

@@ -4,7 +4,6 @@ const auth = require('../middleware/auth');
 
 const router = Router();
 
-// GET /api/reviews/venue/:venueId
 router.get('/venue/:venueId', async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -22,7 +21,6 @@ router.get('/venue/:venueId', async (req, res) => {
   }
 });
 
-// GET /api/reviews/my/:venueId — check if current user reviewed this venue
 router.get('/my/:venueId', auth, async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -35,14 +33,12 @@ router.get('/my/:venueId', auth, async (req, res) => {
   }
 });
 
-// POST /api/reviews
 router.post('/', auth, async (req, res) => {
   try {
     const { venue_id, rating, comment, photo_url, bad_reason, reasons } = req.body;
     if (!venue_id || !rating) {
       return res.status(400).json({ error: 'venue_id и rating обязательны' });
     }
-    // reasons: array (new), bad_reason: legacy single string
     const reasonsArr = Array.isArray(reasons) ? reasons.slice(0, 3) : (bad_reason ? [bad_reason] : []);
 
     const { rows } = await pool.query(
@@ -70,15 +66,12 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
-// POST /api/reviews/:id/appeal — flag a review for admin attention
 router.post('/:id/appeal', auth, async (req, res) => {
   try {
     const { reason } = req.body;
-    // Verify review exists
     const rv = await pool.query('SELECT id FROM reviews WHERE id=$1', [req.params.id]);
     if (!rv.rows[0]) return res.status(404).json({ error: 'Отзыв не найден' });
 
-    // One pending appeal per user per review
     const dup = await pool.query(
       `SELECT id FROM review_appeals WHERE review_id=$1 AND reporter_id=$2 AND status='pending' LIMIT 1`,
       [req.params.id, req.userId]
@@ -97,7 +90,6 @@ router.post('/:id/appeal', auth, async (req, res) => {
   }
 });
 
-// DELETE /api/reviews/:id — user deletes own review
 router.delete('/:id', auth, async (req, res) => {
   try {
     const check = await pool.query(

@@ -30,7 +30,6 @@ export const api = {
   login: (email, password) =>
     request('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
 
-  // ── Admin ─────────────────────────────────────────
   getStats: () => request('/api/admin/stats'),
 
   getVenues: () => request('/api/admin/venues'),
@@ -67,7 +66,6 @@ export const api = {
   processApplication: (id, status, admin_note) =>
     request(`/api/admin/applications/${id}`, { method: 'PATCH', body: JSON.stringify({ status, admin_note }) }),
 
-  // ── Business ──────────────────────────────────────
   biz: {
     getStats: () => request('/api/business/stats'),
     getVenues: () => request('/api/business/venues'),

@@ -2,7 +2,7 @@ export type Lang = 'ru' | 'kk';
 
 const translations: Record<Lang, Record<string, string>> = {
   ru: {
-    // ─── Auth ──────────────────────────
+    // Auth
     login: 'Войти',
     register: 'Регистрация',
     email: 'Email',
@@ -13,18 +13,18 @@ const translations: Record<Lang, Record<string, string>> = {
     loginError: 'Неверный email или пароль',
     registerError: 'Ошибка регистрации',
 
-    // ─── Tabs ──────────────────────────
+    //  Tabs 
     explore: 'Главная',
     map: 'Карта',
     bookings: 'Брони',
     notifications: 'Уведомления',
     profile: 'Профиль',
 
-    // ─── Explore ───────────────────────
+    //Explore
     searchPlaceholder: 'Поиск клубов, боулинга, бильярда',
     all: 'Все',
 
-    // ─── Venue Detail ──────────────────
+    //Venue Detail 
     about: 'Описание',
     amenities: 'Удобства',
     reviews: 'Отзывы',
@@ -38,7 +38,7 @@ const translations: Record<Lang, Record<string, string>> = {
     services: 'Услуги',
     masters: 'Мастера',
 
-    // ─── Booking ───────────────────────
+    //Booking
     bookReservation: 'Бронирование',
     selectDate: 'Выберите дату',
     selectTime: 'Выберите время',
@@ -51,18 +51,18 @@ const translations: Record<Lang, Record<string, string>> = {
     cancel: 'Отменить',
     bookingConfirmed: 'Бронь подтверждена!',
 
-    // ─── Reviews ───────────────────────
+    // Reviews 
     writeReview: 'Написать отзыв',
     noReviews: 'Отзывов пока нет',
     yourRating: 'Ваша оценка',
     yourComment: 'Ваш комментарий',
     submit: 'Отправить',
 
-    // ─── Notifications ─────────────────
+    // Notifications 
     noNotifications: 'Нет уведомлений',
     markAllRead: 'Прочитать все',
 
-    // ─── Profile ───────────────────────
+    //  Profile
     editProfile: 'Редактировать',
     favorites: 'Избранное',
     settings: 'Настройки',
@@ -73,11 +73,11 @@ const translations: Record<Lang, Record<string, string>> = {
     phone: 'Телефон',
     save: 'Сохранить',
 
-    // ─── Map ───────────────────────────
+    //  Map 
     discoverVenues: 'Заведения рядом',
     venueNotFound: 'Заведение не найдено',
 
-    // ─── General ───────────────────────
+    // General
     loading: 'Загрузка...',
     error: 'Ошибка',
     retry: 'Повторить',
@@ -86,7 +86,7 @@ const translations: Record<Lang, Record<string, string>> = {
   },
 
   kk: {
-    // ─── Auth ──────────────────────────
+    // Auth 
     login: 'Кіру',
     register: 'Тіркелу',
     email: 'Email',
@@ -97,18 +97,18 @@ const translations: Record<Lang, Record<string, string>> = {
     loginError: 'Email немесе құпия сөз қате',
     registerError: 'Тіркелу қатесі',
 
-    // ─── Tabs ──────────────────────────
+    //  Tabs 
     explore: 'Басты',
     map: 'Карта',
     bookings: 'Брондар',
     notifications: 'Хабарламалар',
     profile: 'Профиль',
 
-    // ─── Explore ───────────────────────
+    //Explore
     searchPlaceholder: 'Клуб, боулинг, бильярд іздеу',
     all: 'Барлығы',
 
-    // ─── Venue Detail ──────────────────
+    //Venue Detail 
     about: 'Сипаттама',
     amenities: 'Ыңғайлылықтар',
     reviews: 'Пікірлер',
@@ -122,7 +122,7 @@ const translations: Record<Lang, Record<string, string>> = {
     services: 'Қызметтер',
     masters: 'Шеберлер',
 
-    // ─── Booking ───────────────────────
+    //  Booking 
     bookReservation: 'Брондау',
     selectDate: 'Күнді таңдаңыз',
     selectTime: 'Уақытты таңдаңыз',
@@ -135,18 +135,18 @@ const translations: Record<Lang, Record<string, string>> = {
     cancel: 'Бас тарту',
     bookingConfirmed: 'Бронь расталды!',
 
-    // ─── Reviews ───────────────────────
+    //  Reviews 
     writeReview: 'Пікір жазу',
     noReviews: 'Пікірлер жоқ',
     yourRating: 'Сіздің бағаңыз',
     yourComment: 'Сіздің пікіріңіз',
     submit: 'Жіберу',
 
-    // ─── Notifications ─────────────────
+    //  Notifications 
     noNotifications: 'Хабарламалар жоқ',
     markAllRead: 'Бәрін оқу',
 
-    // ─── Profile ───────────────────────
+    // ─── Profile 
     editProfile: 'Өзгерту',
     favorites: 'Таңдаулылар',
     settings: 'Баптаулар',
@@ -157,11 +157,11 @@ const translations: Record<Lang, Record<string, string>> = {
     phone: 'Телефон',
     save: 'Сақтау',
 
-    // ─── Map ───────────────────────────
+    //  Map 
     discoverVenues: 'Жақын орындар',
     venueNotFound: 'Орын табылмады',
 
-    // ─── General ───────────────────────
+    // General 
     loading: 'Жүктелуде...',
     error: 'Қате',
     retry: 'Қайталау',

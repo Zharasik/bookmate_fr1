@@ -4,7 +4,6 @@ const auth = require('../middleware/auth');
 
 const router = Router();
 
-// ─── GET MY FAVORITES ────────────────────────────────
 router.get('/', auth, async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -20,7 +19,6 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
-// ─── TOGGLE FAVORITE ─────────────────────────────────
 router.post('/toggle', auth, async (req, res) => {
   try {
     const { venue_id } = req.body;
@@ -42,7 +40,6 @@ router.post('/toggle', auth, async (req, res) => {
   }
 });
 
-// ─── CHECK IF FAVORITED ──────────────────────────────
 router.get('/check/:venueId', auth, async (req, res) => {
   try {
     const { rows } = await pool.query(

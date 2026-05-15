@@ -7,12 +7,8 @@ const { validateRole } = require('../utils/validation');
 
 const router = Router();
 
-// All routes require admin
 router.use(auth, roleCheck(USER_ROLES.ADMIN));
 
-// ═══════════════════════════════════════════════════════
-// DASHBOARD STATS
-// ═══════════════════════════════════════════════════════
 router.get('/stats', async (_req, res) => {
   try {
     const [venues, users, bookings, reviews, services, masters] = await Promise.all([
@@ -40,9 +36,6 @@ router.get('/stats', async (_req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Ошибка' }); }
 });
 
-// ═══════════════════════════════════════════════════════
-// VENUES CRUD
-// ═══════════════════════════════════════════════════════
 router.get('/venues', async (_req, res) => {
   try {
     const { rows } = await pool.query('SELECT * FROM venues ORDER BY created_at DESC');
@@ -58,7 +51,6 @@ router.post('/venues', async (req, res) => {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
       [name, category, location, description, image_url, price_range, latitude || 0, longitude || 0, amenities || [], open_time || '10:00', close_time || '02:00', phone]
     );
-    // Notify all users about new venue
     const users = await pool.query('SELECT id FROM users');
     for (const u of users.rows) {
       await pool.query(
@@ -94,9 +86,6 @@ router.delete('/venues/:id', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Ошибка' }); }
 });
 
-// ═══════════════════════════════════════════════════════
-// SERVICES CRUD
-// ═══════════════════════════════════════════════════════
 router.get('/services', async (req, res) => {
   try {
     const { venue_id } = req.query;
@@ -142,9 +131,6 @@ router.delete('/services/:id', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Ошибка' }); }
 });
 
-// ═══════════════════════════════════════════════════════
-// MASTERS / STAFF CRUD
-// ═══════════════════════════════════════════════════════
 router.get('/masters', async (req, res) => {
   try {
     const { venue_id } = req.query;
@@ -190,9 +176,6 @@ router.delete('/masters/:id', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Ошибка' }); }
 });
 
-// ═══════════════════════════════════════════════════════
-// PROMOTIONS CRUD
-// ═══════════════════════════════════════════════════════
 router.get('/promotions', async (req, res) => {
   try {
     const { venue_id } = req.query;
@@ -213,7 +196,6 @@ router.post('/promotions', async (req, res) => {
        VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
       [venue_id, title, description, discount || 0, start_date, end_date]
     );
-    // Notify all users about the promotion
     const users = await pool.query('SELECT id FROM users');
     for (const u of users.rows) {
       await pool.query(
@@ -247,9 +229,6 @@ router.delete('/promotions/:id', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Ошибка' }); }
 });
 
-// ═══════════════════════════════════════════════════════
-// PHOTOS MANAGEMENT
-// ═══════════════════════════════════════════════════════
 router.get('/photos', async (req, res) => {
   try {
     const { venue_id } = req.query;
@@ -269,9 +248,6 @@ router.delete('/photos/:id', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Ошибка' }); }
 });
 
-// ═══════════════════════════════════════════════════════
-// BOOKINGS MANAGEMENT
-// ═══════════════════════════════════════════════════════
 router.get('/bookings', async (req, res) => {
   try {
     const { status, venue_id } = req.query;
@@ -303,17 +279,14 @@ router.patch('/bookings/:id', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Ошибка' }); }
 });
 
-// ═══════════════════════════════════════════════════════
-// REVIEWS MANAGEMENT  (paginated + search + appeal filter)
-// ═══════════════════════════════════════════════════════
 router.get('/reviews', async (req, res) => {
   try {
     const page    = Math.max(1, parseInt(req.query.page)  || 1);
     const limit   = Math.min(100, parseInt(req.query.limit) || 50);
     const offset  = (page - 1) * limit;
     const search  = req.query.search  || '';
-    const rating  = req.query.rating  || '';   // e.g. "1", "2", "3", "1-3", "4-5"
-    const appeals = req.query.appeals || '';   // "only" = flagged only, "none" = no flags
+    const rating  = req.query.rating  || '';
+    const appeals = req.query.appeals || '';
 
     const params = [];
     let where = `WHERE 1=1`;
@@ -378,9 +351,6 @@ router.delete('/reviews/:id', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Ошибка' }); }
 });
 
-// ═══════════════════════════════════════════════════════
-// APPEALS MANAGEMENT
-// ═══════════════════════════════════════════════════════
 router.get('/appeals', async (req, res) => {
   try {
     const { status } = req.query;
@@ -430,7 +400,6 @@ router.patch('/appeals/:id', async (req, res) => {
       [status, admin_note || null, req.params.id]
     );
 
-    // If approved → delete the flagged review or zero out the booking rating
     if (status === 'approved') {
       if (appeal.type === 'venue_review' && appeal.review_id) {
         const rv = await client.query('SELECT venue_id FROM reviews WHERE id=$1', [appeal.review_id]);
@@ -445,7 +414,6 @@ router.patch('/appeals/:id', async (req, res) => {
           );
         }
       } else if (appeal.type === 'client_rating' && appeal.booking_id) {
-        // Fetch old rating to recalculate user's average
         const bk = await client.query(
           'SELECT user_id, client_rating_given FROM bookings WHERE id=$1', [appeal.booking_id]
         );
@@ -482,9 +450,6 @@ router.patch('/appeals/:id', async (req, res) => {
   } finally { client.release(); }
 });
 
-// ═══════════════════════════════════════════════════════
-// USERS MANAGEMENT
-// ═══════════════════════════════════════════════════════
 router.get('/users', async (_req, res) => {
   try {
     const { rows } = await pool.query(
@@ -519,9 +484,6 @@ router.delete('/users/:id', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Ошибка' }); }
 });
 
-// ═══════════════════════════════════════════════════════
-// SEND NOTIFICATION TO ALL USERS
-// ═══════════════════════════════════════════════════════
 router.post('/notify-all', async (req, res) => {
   try {
     const { type, title, message } = req.body;
@@ -536,9 +498,6 @@ router.post('/notify-all', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Ошибка' }); }
 });
 
-// ═══════════════════════════════════════════════════════
-// BUSINESS APPLICATIONS
-// ═══════════════════════════════════════════════════════
 router.get('/applications', async (_req, res) => {
   try {
     const { rows } = await pool.query(

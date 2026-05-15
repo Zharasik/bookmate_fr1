@@ -19,7 +19,6 @@ function addMinutes(timeStr, mins) {
   return minToTime(timeToMin(timeStr) + mins);
 }
 
-// GET /api/bookings — user's own bookings
 router.get("/", auth, async (req, res) => {
   try {
     const { status } = req.query;
@@ -43,28 +42,23 @@ router.get("/", auth, async (req, res) => {
   }
 });
 
-// GET /api/bookings/availability/:venueId?date=YYYY-MM-DD
-// Returns all active slots with their booked time ranges for the given date
 router.get("/availability/:venueId", async (req, res) => {
   try {
     const { date } = req.query;
     if (!date) return res.status(400).json({ error: "date обязателен" });
 
-    // All active slots for this venue
     const slotsRes = await pool.query(
       `SELECT id, name, description, capacity, price, duration
        FROM venue_slots WHERE venue_id=$1 AND is_active=true ORDER BY name`,
       [req.params.venueId],
     );
 
-    // All non-cancelled bookings for this venue+date
     const bookingsRes = await pool.query(
       `SELECT slot_id, time, end_time FROM bookings
        WHERE venue_id=$1 AND date=$2 AND status NOT IN ('cancelled')`,
       [req.params.venueId, date],
     );
 
-    // Group booked ranges by slot_id
     const bookedBySlot = {};
     for (const b of bookingsRes.rows) {
       if (!b.slot_id) continue;
@@ -73,7 +67,6 @@ router.get("/availability/:venueId", async (req, res) => {
       bookedBySlot[b.slot_id].push({ start: b.time, end: endTime });
     }
 
-    // Venue-level ranges — bookings without a specific slot (or all bookings combined)
     const venueRanges = bookingsRes.rows.map((b) => ({
       start: b.time,
       end: b.end_time || addMinutes(b.time, 60),
@@ -94,7 +87,6 @@ router.get("/availability/:venueId", async (req, res) => {
   }
 });
 
-// POST /api/bookings — create booking with overlap-based conflict detection
 router.post("/", auth, async (req, res) => {
   const client = await pool.connect();
   try {
@@ -102,12 +94,10 @@ router.post("/", auth, async (req, res) => {
     if (!venue_id || !date || !time)
       return res.status(400).json({ error: "venue_id, date и time обязательны" });
 
-    // Reject past bookings
     const bookingDateTime = new Date(`${date}T${time}:00`);
     if (bookingDateTime <= new Date())
       return res.status(400).json({ error: "Нельзя забронировать на уже прошедшее время." });
 
-    // Determine duration: from request → slot → default 60
     let bookingDuration = duration || 60;
     if (slot_id && !duration) {
       const slotDur = await pool.query("SELECT duration FROM venue_slots WHERE id=$1", [slot_id]);
@@ -118,7 +108,6 @@ router.post("/", auth, async (req, res) => {
     await client.query("BEGIN");
     await client.query("SELECT id FROM venues WHERE id=$1 FOR UPDATE", [venue_id]);
 
-    // Rule 1: user can't have overlapping booking at any venue
     const userConflict = await client.query(
       `SELECT b.id, v.name AS venue_name FROM bookings b
        JOIN venues v ON v.id = b.venue_id
@@ -135,7 +124,6 @@ router.post("/", auth, async (req, res) => {
       });
     }
 
-    // Rule 2: slot can't be double-booked (overlap)
     if (slot_id) {
       const slotConflict = await client.query(
         `SELECT id FROM bookings
@@ -153,7 +141,6 @@ router.post("/", auth, async (req, res) => {
       }
     }
 
-    // Calculate price
     let totalPrice = 0;
     if (slot_id) {
       const slotRow = await client.query(
@@ -166,12 +153,10 @@ router.post("/", auth, async (req, res) => {
       }
       const slotPrice = slotRow.rows[0].price || 0;
       const slotDuration = slotRow.rows[0].duration || 60;
-      // price is per-duration-unit; multiply by how many units booked
       const units = Math.round(bookingDuration / slotDuration);
       totalPrice = slotPrice * Math.max(1, units);
     }
 
-    // If service selected, use its price/duration if no slot price given
     if (service_id && totalPrice === 0) {
       const svcRow = await client.query(
         "SELECT price, duration FROM services WHERE id=$1 AND is_active=true",
@@ -224,7 +209,6 @@ router.post("/", auth, async (req, res) => {
   }
 });
 
-// DELETE /api/bookings/history — clear completed and cancelled bookings
 router.delete("/history", auth, async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -270,11 +254,9 @@ router.patch("/:id/cancel", auth, async (req, res) => {
   }
 });
 
-// POST /api/bookings/:id/appeal-rating — user disputes client rating they received
 router.post('/:id/appeal-rating', auth, async (req, res) => {
   try {
     const { reason } = req.body;
-    // Check the booking belongs to the user and has a rating
     const bk = await pool.query(
       `SELECT id, client_rating_given FROM bookings WHERE id=$1 AND user_id=$2`,
       [req.params.id, req.userId]

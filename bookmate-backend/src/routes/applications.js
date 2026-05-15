@@ -4,7 +4,6 @@ const auth = require('../middleware/auth');
 
 const router = Router();
 
-// POST /api/applications — submit and auto-approve (business confirms itself)
 router.post('/', auth, async (req, res) => {
   const client = await pool.connect();
   try {
@@ -12,7 +11,6 @@ router.post('/', auth, async (req, res) => {
     if (!business_name || !category || !location)
       return res.status(400).json({ error: 'Название, категория и адрес обязательны' });
 
-    // Check if user already has an approved application / is already business owner
     const existing = await pool.query(
       `SELECT id, status FROM business_applications WHERE user_id=$1 AND status IN ('pending','approved') LIMIT 1`,
       [req.userId]
@@ -29,17 +27,14 @@ router.post('/', auth, async (req, res) => {
 
     await client.query('BEGIN');
 
-    // Insert application as already approved (self-confirmation)
     const { rows } = await client.query(
       `INSERT INTO business_applications (user_id, business_name, category, location, description, phone, status)
        VALUES ($1,$2,$3,$4,$5,$6,'approved') RETURNING *`,
       [req.userId, business_name, category, location, description || null, phone || null]
     );
 
-    // Upgrade user role to business_owner
     await client.query("UPDATE users SET role='business_owner' WHERE id=$1", [req.userId]);
 
-    // Create venue immediately
     const venueRes = await client.query(
       `INSERT INTO venues (owner_id, name, category, location, description, phone, is_active)
        VALUES ($1,$2,$3,$4,$5,$6,true) RETURNING id`,
@@ -63,7 +58,6 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
-// GET /api/applications/my — user checks own application status
 router.get('/my', auth, async (req, res) => {
   try {
     const { rows } = await pool.query(

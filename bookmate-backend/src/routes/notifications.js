@@ -4,7 +4,6 @@ const auth = require('../middleware/auth');
 
 const router = Router();
 
-// ─── GET MY NOTIFICATIONS ────────────────────────────
 router.get('/', auth, async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -20,7 +19,6 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
-// ─── MARK AS READ ────────────────────────────────────
 router.patch('/:id/read', auth, async (req, res) => {
   try {
     await pool.query(
@@ -34,7 +32,6 @@ router.patch('/:id/read', auth, async (req, res) => {
   }
 });
 
-// ─── MARK ALL AS READ ────────────────────────────────
 router.patch('/read-all', auth, async (req, res) => {
   try {
     await pool.query(
