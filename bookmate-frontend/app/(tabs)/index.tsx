@@ -36,18 +36,7 @@ export default function ExploreScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]} edges={['top']}>
       {/* Header: Bell left | Title | Profile right */}
-      <View style={styles.header}>
-        <Pressable style={[styles.iconBtn, { backgroundColor: c.card }]} onPress={() => router.push('/(tabs)/notifications' as any)}>
-          <Bell size={20} color={c.text} />
-        </Pressable>
-        <Text style={[styles.headerTitle, { color: c.text }]}>{t('explore')}</Text>
-        <Pressable style={[styles.iconBtn, { backgroundColor: c.primary }]} onPress={() => router.push('/(tabs)/profile' as any)}>
-          {user?.avatar_url
-            ? <Image source={{ uri: user.avatar_url }} style={styles.avatarImg} />
-            : <Text style={styles.avatarText}>{user?.name?.[0]?.toUpperCase() || 'U'}</Text>}
-        </Pressable>
-      </View>
-
+      
       {/* Search */}
       <View style={[styles.searchBox, { backgroundColor: c.card }]}>
         <Search size={18} color={c.textMuted} />

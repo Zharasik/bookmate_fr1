@@ -8,6 +8,37 @@ import { useTheme, useT } from '../../hooks/useHelpers';
 import { api } from '../../services/api';
 import { formatPhone } from '../../constants/phoneUtils';
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const PHONE_RE = /^\+7 \d{3} \d{3} \d{2} \d{2}$/;
+
+function validateName(v: string) {
+  if (!v.trim()) return 'Введите имя';
+  if (v.trim().length < 2) return 'Имя минимум 2 символа';
+  if (/\d/.test(v)) return 'Имя не должно содержать цифры';
+  return '';
+}
+
+function validateEmail(v: string) {
+  if (!v.trim()) return 'Введите email';
+  if (!EMAIL_RE.test(v.trim())) return 'Некорректный email адрес';
+  return '';
+}
+
+function validatePhone(v: string) {
+  if (!v) return '';
+  if (!PHONE_RE.test(v)) return 'Формат: +7 777 777 77 77';
+  return '';
+}
+
+function validatePassword(v: string) {
+  if (!v) return 'Введите пароль';
+  if (v.length < 8) return 'Пароль минимум 8 символов';
+  if (!/[A-Z]/.test(v)) return 'Нужна хотя бы одна заглавная буква';
+  if (!/[a-z]/.test(v)) return 'Нужна хотя бы одна строчная буква';
+  if (!/\d/.test(v)) return 'Нужна хотя бы одна цифра';
+  return '';
+}
+
 export default function RegisterScreen() {
   const router = useRouter();
   const c = useTheme(); const t = useT();
@@ -17,18 +48,36 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [touched, setTouched] = useState({ name: false, email: false, phone: false, password: false });
+  const [serverError, setServerError] = useState('');
+
+  const nameErr = touched.name ? validateName(name) : '';
+  const emailErr = touched.email ? validateEmail(email) : '';
+  const phoneErr = touched.phone ? validatePhone(phone) : '';
+  const passErr = touched.password ? validatePassword(password) : '';
+
+  const touch = (field: keyof typeof touched) =>
+    setTouched(prev => ({ ...prev, [field]: true }));
 
   const handleRegister = async () => {
-    if (!name.trim() || !email.trim() || !password) { setError('Заполните имя, email и пароль'); return; }
-    if (password.length < 6) { setError('Пароль минимум 6 символов'); return; }
-    setLoading(true); setError('');
+    setTouched({ name: true, email: true, phone: true, password: true });
+    const e1 = validateName(name);
+    const e2 = validateEmail(email);
+    const e3 = validatePhone(phone);
+    const e4 = validatePassword(password);
+    if (e1 || e2 || e3 || e4) return;
+
+    setLoading(true); setServerError('');
     try {
       const res = await api.register(email.trim().toLowerCase(), password, name.trim(), phone || undefined, 'user');
       router.push({ pathname: '/auth/verify', params: { userId: res.userId, email: res.email, devCode: res.dev_code || '' } } as any);
-    } catch (e: any) { setError(e.message || t('registerError')); }
+    } catch (e: any) { setServerError(e.message || t('registerError')); }
     finally { setLoading(false); }
   };
+
+  const inputBorder = (err: string, isTouched: boolean) => ({
+    borderColor: err ? '#EF4444' : isTouched && !err ? '#22C55E' : c.border,
+  });
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]}>
@@ -45,30 +94,82 @@ export default function RegisterScreen() {
 
           <View style={[styles.card, { backgroundColor: c.card }]}>
             <Text style={[styles.cardTitle, { color: c.text }]}>{t('register')}</Text>
-            {error ? <View style={styles.errorBox}><Text style={styles.errorText}>{error}</Text></View> : null}
 
-            <View style={[styles.inputWrap, { backgroundColor: c.inputBg, borderColor: c.border }]}>
+            {!!serverError && (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{serverError}</Text>
+              </View>
+            )}
+
+            <View style={[styles.inputWrap, { backgroundColor: c.inputBg }, inputBorder(nameErr, touched.name)]}>
               <User size={18} color={c.textMuted} />
-              <TextInput style={[styles.input, { color: c.text }]} placeholder={t('name')} placeholderTextColor={c.textMuted} value={name} onChangeText={setName} />
+              <TextInput
+                style={[styles.input, { color: c.text }]}
+                placeholder={t('name')}
+                placeholderTextColor={c.textMuted}
+                value={name}
+                onChangeText={setName}
+                onBlur={() => touch('name')}
+              />
             </View>
-            <View style={[styles.inputWrap, { backgroundColor: c.inputBg, borderColor: c.border }]}>
+            {!!nameErr && <Text style={styles.fieldErr}>{nameErr}</Text>}
+
+            <View style={[styles.inputWrap, { backgroundColor: c.inputBg }, inputBorder(emailErr, touched.email)]}>
               <Mail size={18} color={c.textMuted} />
-              <TextInput style={[styles.input, { color: c.text }]} placeholder={t('email')} placeholderTextColor={c.textMuted} autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} />
+              <TextInput
+                style={[styles.input, { color: c.text }]}
+                placeholder={t('email')}
+                placeholderTextColor={c.textMuted}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                value={email}
+                onChangeText={setEmail}
+                onBlur={() => touch('email')}
+              />
             </View>
-            <View style={[styles.inputWrap, { backgroundColor: c.inputBg, borderColor: c.border }]}>
+            {!!emailErr && <Text style={styles.fieldErr}>{emailErr}</Text>}
+
+            <View style={[styles.inputWrap, { backgroundColor: c.inputBg }, inputBorder(phoneErr, touched.phone)]}>
               <Phone size={18} color={c.textMuted} />
-              <TextInput style={[styles.input, { color: c.text }]} placeholder="+7 777 777 77 77" placeholderTextColor={c.textMuted} keyboardType="phone-pad" value={phone} onChangeText={(v) => setPhone(formatPhone(v))} maxLength={16} />
+              <TextInput
+                style={[styles.input, { color: c.text }]}
+                placeholder="+7 777 777 77 77"
+                placeholderTextColor={c.textMuted}
+                keyboardType="phone-pad"
+                value={phone}
+                onChangeText={(v) => setPhone(formatPhone(v))}
+                onBlur={() => touch('phone')}
+                maxLength={16}
+              />
             </View>
-            <View style={[styles.inputWrap, { backgroundColor: c.inputBg, borderColor: c.border }]}>
+            {!!phoneErr && <Text style={styles.fieldErr}>{phoneErr}</Text>}
+
+            <View style={[styles.inputWrap, { backgroundColor: c.inputBg }, inputBorder(passErr, touched.password)]}>
               <Lock size={18} color={c.textMuted} />
-              <TextInput style={[styles.input, { color: c.text }]} placeholder={t('password')} placeholderTextColor={c.textMuted} secureTextEntry={!showPass} value={password} onChangeText={setPassword} />
-              <Pressable onPress={() => setShowPass(!showPass)}>{showPass ? <EyeOff size={18} color={c.textMuted} /> : <Eye size={18} color={c.textMuted} />}</Pressable>
+              <TextInput
+                style={[styles.input, { color: c.text }]}
+                placeholder={t('password')}
+                placeholderTextColor={c.textMuted}
+                secureTextEntry={!showPass}
+                value={password}
+                onChangeText={setPassword}
+                onBlur={() => touch('password')}
+              />
+              <Pressable onPress={() => setShowPass(!showPass)}>
+                {showPass ? <EyeOff size={18} color={c.textMuted} /> : <Eye size={18} color={c.textMuted} />}
+              </Pressable>
             </View>
-            <Pressable onPress={handleRegister} disabled={loading} style={{ marginTop: 8 }}>
+            {!!passErr && <Text style={styles.fieldErr}>{passErr}</Text>}
+            {!passErr && touched.password && password.length > 0 && (
+              <Text style={styles.passHint}>Мин. 8 символов · Загл. буква · Строчная · Цифра</Text>
+            )}
+
+            <Pressable onPress={handleRegister} disabled={loading} style={{ marginTop: 12 }}>
               <LinearGradient colors={loading ? ['#93C5FD', '#93C5FD'] : ['#2563EB', '#3B82F6']} style={styles.btn} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
                 {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>{t('register')}</Text>}
               </LinearGradient>
             </Pressable>
+
             <Pressable onPress={() => router.back()} style={styles.link}>
               <Text style={[styles.linkText, { color: c.textSecondary }]}>
                 {t('hasAccount')} <Text style={{ color: c.primary, fontWeight: '700' }}>{t('login')}</Text>
@@ -93,8 +194,10 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 20, fontWeight: '700', marginBottom: 16 },
   errorBox: { backgroundColor: '#FEE2E2', borderRadius: 10, padding: 12, marginBottom: 14 },
   errorText: { color: '#991B1B', fontSize: 14, textAlign: 'center' },
-  inputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, marginBottom: 12, height: 52, gap: 10 },
+  inputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, height: 52, gap: 10 },
   input: { flex: 1, fontSize: 15 },
+  fieldErr: { color: '#EF4444', fontSize: 12, marginTop: 4, marginBottom: 8, marginLeft: 4 },
+  passHint: { color: '#6B7280', fontSize: 11, marginTop: 4, marginBottom: 8, marginLeft: 4 },
   btn: { height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   btnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   link: { marginTop: 18, alignItems: 'center' },
