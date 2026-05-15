@@ -42,18 +42,18 @@ const translations: Record<Lang, Record<string, string>> = {
     errCodeIncomplete: 'Введите все 6 цифр',
     newPassword: 'Новый пароль',
 
-    //  Tabs 
+    // Tabs
     explore: 'Главная',
     map: 'Карта',
     bookings: 'Брони',
     notifications: 'Уведомления',
     profile: 'Профиль',
 
-    //Explore
+    // Explore
     searchPlaceholder: 'Поиск клубов, боулинга, бильярда',
     all: 'Все',
 
-    //Venue Detail 
+    // Venue Detail
     about: 'Описание',
     amenities: 'Удобства',
     reviews: 'Отзывы',
@@ -67,7 +67,7 @@ const translations: Record<Lang, Record<string, string>> = {
     services: 'Услуги',
     masters: 'Мастера',
 
-    //Booking
+        //Booking
     bookReservation: 'Бронирование',
     selectDate: 'Выберите дату',
     selectTime: 'Выберите время',
@@ -80,18 +80,83 @@ const translations: Record<Lang, Record<string, string>> = {
     cancel: 'Отменить',
     bookingConfirmed: 'Бронь подтверждена!',
 
-    // Reviews 
+      // Bookings screen
+    filterAll: 'Все',
+    filterInProgress: 'В процессе',
+    filterConfirmed: 'Подтверждены',
+    filterPending: 'Ожидают',
+    filterCompleted: 'Завершены',
+    filterCancelled: 'Отменены',
+    statusPending: '⏳ Ожидает',
+    statusConfirmed: '✓ Подтверждена',
+    statusInProgress: '▶ В процессе',
+    statusCompleted: '✓ Завершена',
+    statusCancelled: '✕ Отменена',
+    leaveReview: 'Оставить отзыв',
+    appealRating: 'Обжаловать оценку',
+    appealTitle: 'Обжаловать оценку',
+    appealReason: 'Причина обжалования',
+    appealSent: 'Жалоба отправлена',
+    appealSentMsg: 'Администратор рассмотрит её и при необходимости отменит оценку.',
+    appealSend: 'Отправить жалобу',
+    appealOpt1: 'Оценка несправедливая',
+    appealOpt2: 'Я не давал повода',
+    appealOpt3: 'Нарушение правил',
+    appealOpt4: 'Другое',
+    noBookings: 'Нет бронирований',
+    noBookingsFilter: 'Нет «{f}»',
+    bookFirst: 'Забронируйте первое место!',
+    tryFilter: 'Попробуйте другой фильтр',
+    clearHistory: 'Очистить историю?',
+    clearHistoryMsg: 'Все завершённые и отменённые брони будут удалены.',
+    noHistory: 'Нет истории',
+    noHistoryMsg: 'Нет завершённых или отменённых бронирований.',
+    deleted: 'Готово',
+    deletedMsg: 'Удалено записей: {n}',
+    cancelBooking: 'Отменить бронь?',
+    cancelBookingMsg: 'Это действие нельзя отменить.',
+    cantCancel: 'Не удалось отменить',
+    yes: 'Да, отменить',
+    no: 'Нет',
+    selectPlace: 'Выберите место',
+    selectPlaceHint: 'Зелёный — есть свободное время · Красный — всё занято на этот день',
+    selectServiceHint: 'Необязательно — выберите услугу, которая вас интересует',
+    noTimeSlots: 'Нет доступных слотов для этого дня.',
+    duration: 'Продолжительность',
+    total: 'Итого',
+    free: 'Бесплатно',
+    takenTime: 'занято',
+    takenAlert: 'Это время уже забронировано. Выберите другое.',
+    selectPlaceFirst: 'Сначала выберите место',
+    selectTimeFirst: 'Выберите время',
+    exceedsClose: 'Превышает время закрытия',
+    bookWithDuration: 'Забронировать · {d}',
+    overflowWarning: 'Выбранная продолжительность выходит за время закрытия ({t}). Уменьшите количество часов или выберите более раннее время.',
+    conflictWarning: 'У вас уже есть бронь в «{v}» на {s}–{e}. Вы не можете быть в двух местах одновременно.',
+    bookingCreatedMsg: 'Бронь {d} {date} {m} · {s}–{e} · {dur} создана и ожидает подтверждения.',
+    goToBookings: 'Мои брони',
+    worksAt: 'Работает: {o} – {c}',
+    selectPlaceFirst2: 'Выберите конкретное место или слот для бронирования.',
+    selectTimeAlert: 'Выберите время начала.',
+    conflictAlert: 'У вас уже есть бронь на это время в "{v}". Отмените её или выберите другое время.',
+    conflictBookings: 'Конфликт бронирований',
+    person: 'гост',
+    personOne: 'ь',
+    personFew: 'я',
+    selectService: 'Выберите услугу',
+
+    // Reviews
     writeReview: 'Написать отзыв',
     noReviews: 'Отзывов пока нет',
     yourRating: 'Ваша оценка',
     yourComment: 'Ваш комментарий',
     submit: 'Отправить',
 
-    // Notifications 
+    // Notifications
     noNotifications: 'Нет уведомлений',
     markAllRead: 'Прочитать все',
 
-    //  Profile
+    // Profile
     editProfile: 'Редактировать',
     favorites: 'Избранное',
     settings: 'Настройки',
@@ -102,7 +167,7 @@ const translations: Record<Lang, Record<string, string>> = {
     phone: 'Телефон',
     save: 'Сохранить',
 
-    //  Map 
+    // Map
     discoverVenues: 'Заведения рядом',
     venueNotFound: 'Заведение не найдено',
 
@@ -112,6 +177,55 @@ const translations: Record<Lang, Record<string, string>> = {
     retry: 'Повторить',
     back: 'Назад',
     ok: 'Ок',
+
+    businessPanel: 'Бизнес панель',
+    becomePartner: 'Стать бизнес-партнёром',  
+    accountSection: 'АККАУНТ',
+    businessSection: 'БИЗНЕС',
+    forBusinessSection: 'ДЛЯ БИЗНЕСА',
+    clientRating: 'рейтинг клиента',
+    applyTitle: 'Стать партнёром',
+    applySub: 'Заполните заявку — администратор рассмотрит её и создаст ваше заведение.',
+    applyPending: '⏳ Ваша заявка уже на рассмотрении',
+    applyRejected: '✕ Заявка отклонена',
+    applyCanResubmit: 'Вы можете подать новую заявку',
+    applyApproved: '✓ Заявка одобрена',
+    applyApprovedSub: 'Профиль будет обновлён автоматически. Если бизнес-раздел уже доступен, заявку повторно отправлять не нужно.',
+    applyFieldName: 'Название бизнеса *',
+    applyFieldNamePh: 'Бильярдный клуб Elite',
+    applyFieldCategory: 'Категория *',
+    applyFieldCategoryPh: 'Billiards, Bowling, Gaming...',
+    applyFieldLocation: 'Адрес *',
+    applyFieldLocationPh: 'г. Алматы, ул. Абая 1',
+    applyFieldPhone: 'Телефон',
+    applyFieldPhonePh: '+7 700 000 0000',
+    applyFieldDesc: 'Описание',
+    applyFieldDescPh: 'Расскажите о вашем бизнесе...',
+    applyStatusPending: 'На рассмотрении',
+    applyStatusApproved: 'Уже одобрено',
+    applySubmit: 'Отправить заявку',
+
+    // Help (FAQ) ← НОВОЕ
+    helpFaqTitle: 'FAQ — Частые вопросы',
+    helpFaqSub: 'Нажмите на вопрос чтобы увидеть ответ',
+    helpNotFound: 'Не нашли ответ?',
+    helpContact: 'Напишите нам: support@bookmate.kz',
+    helpQ1: 'Как забронировать место?',
+    helpA1: 'Откройте заведение → нажмите "Забронировать" → выберите дату, время и слот → подтвердите бронь. Заведение получит уведомление и подтвердит вашу бронь.',
+    helpQ2: 'Можно ли отменить бронь?',
+    helpA2: 'Да. Перейдите в раздел "Брони" → найдите нужную бронь → нажмите "Отменить". Отмена доступна для статусов "Ожидает" и "Подтверждена".',
+    helpQ3: 'Почему слот заблокирован?',
+    helpA3: 'Слот уже занят другим пользователем на выбранное время. Выберите другое время или другой слот.',
+    helpQ4: 'Как добавить в избранное?',
+    helpA4: 'На странице заведения нажмите иконку ❤️ в правом верхнем углу. Все избранные заведения доступны в разделе Профиль → Избранное.',
+    helpQ5: 'Когда придёт подтверждение?',
+    helpA5: 'Заведение подтверждает бронь вручную. Обычно это занимает от нескольких минут до 1 часа. Вы получите уведомление в приложении.',
+    helpQ6: 'Как сменить язык?',
+    helpA6: 'Профиль → Настройки → нажмите на язык (RU/KK) чтобы переключить.',
+    helpQ7: 'Как изменить фото профиля?',
+    helpA7: 'Профиль → нажмите на аватар (кружок с буквой) → выберите фото из галереи.',
+    helpQ8: 'Что такое рейтинг клиента?',
+    helpA8: 'Рейтинг клиента — оценка вашей надёжности как пользователя. Начинается с 5.00. Заведения могут оставлять оценку после завершённых бронирований.',
   },
 
   kk: {
@@ -155,18 +269,18 @@ const translations: Record<Lang, Record<string, string>> = {
     errCodeIncomplete: '6 санның бәрін енгізіңіз',
     newPassword: 'Жаңа құпия сөз',
 
-    //  Tabs 
+    // Tabs
     explore: 'Басты',
     map: 'Карта',
     bookings: 'Брондар',
     notifications: 'Хабарламалар',
     profile: 'Профиль',
 
-    //Explore
+    // Explore
     searchPlaceholder: 'Клуб, боулинг, бильярд іздеу',
     all: 'Барлығы',
 
-    //Venue Detail 
+    // Venue Detail
     about: 'Сипаттама',
     amenities: 'Ыңғайлылықтар',
     reviews: 'Пікірлер',
@@ -180,7 +294,7 @@ const translations: Record<Lang, Record<string, string>> = {
     services: 'Қызметтер',
     masters: 'Шеберлер',
 
-    //  Booking 
+    // Booking
     bookReservation: 'Брондау',
     selectDate: 'Күнді таңдаңыз',
     selectTime: 'Уақытты таңдаңыз',
@@ -193,18 +307,18 @@ const translations: Record<Lang, Record<string, string>> = {
     cancel: 'Бас тарту',
     bookingConfirmed: 'Бронь расталды!',
 
-    //  Reviews 
+    // Reviews
     writeReview: 'Пікір жазу',
     noReviews: 'Пікірлер жоқ',
     yourRating: 'Сіздің бағаңыз',
     yourComment: 'Сіздің пікіріңіз',
     submit: 'Жіберу',
 
-    //  Notifications 
+    // Notifications
     noNotifications: 'Хабарламалар жоқ',
     markAllRead: 'Бәрін оқу',
 
-    // ─── Profile 
+    // Profile
     editProfile: 'Өзгерту',
     favorites: 'Таңдаулылар',
     settings: 'Баптаулар',
@@ -214,17 +328,130 @@ const translations: Record<Lang, Record<string, string>> = {
     darkTheme: 'Қараңғы тақырып',
     phone: 'Телефон',
     save: 'Сақтау',
+    businessPanel: 'Бизнес панель',
+    becomePartner: 'Бизнес серіктес болу',
+    accountSection: 'АККАУНТ',
+    businessSection: 'БИЗНЕС',
+    forBusinessSection: 'БИЗНЕС ҮШІН',
+    clientRating: 'клиент рейтингі',
+    applyTitle: 'Серіктес болу',
+    applySub: 'Өтінімді толтырыңыз — әкімші қарастырып, мекемеңізді жасайды.',
+    applyPending: '⏳ Өтінімі қазір қарастырылуда',
+    applyRejected: '✕ Өтінім қабылданбады',
+    applyCanResubmit: 'Жаңа өтінім жіберуге болады',
+    applyApproved: '✓ Өтінім мақұлданды',
+    applyApprovedSub: 'Профиль автоматты түрде жаңартылады. Бизнес бөлімі қолжетімді болса, өтінімді қайта жіберудің қажеті жоқ.',
+    applyFieldName: 'Бизнес атауы *',
+    applyFieldNamePh: 'Бильярд клубы Elite',
+    applyFieldCategory: 'Санат *',
+    applyFieldCategoryPh: 'Billiards, Bowling, Gaming...',
+    applyFieldLocation: 'Мекенжай *',
+    applyFieldLocationPh: 'Алматы қ., Абай к., 1',
+    applyFieldPhone: 'Телефон',
+    applyFieldPhonePh: '+7 700 000 0000',
+    applyFieldDesc: 'Сипаттама',
+    applyFieldDescPh: 'Бизнесіңіз туралы айтыңыз...',
+    applyStatusPending: 'Қарастырылуда',
+    applyStatusApproved: 'Мақұлданды',
+    applySubmit: 'Өтінім жіберу',
 
-    //  Map 
+    // Map
     discoverVenues: 'Жақын орындар',
     venueNotFound: 'Орын табылмады',
 
-    // General 
+    // General
     loading: 'Жүктелуде...',
     error: 'Қате',
     retry: 'Қайталау',
     back: 'Артқа',
     ok: 'Жарайды',
+
+    selectPlace: 'Орын таңдаңыз',
+    selectPlaceHint: 'Жасыл — бос уақыт бар · Қызыл — бұл күні барлығы алынды',
+    selectServiceHint: 'Міндетті емес — қызығатын қызметті таңдаңыз',
+    noTimeSlots: 'Бұл күні қолжетімді слоттар жоқ.',
+    duration: 'Ұзақтығы',
+    total: 'Барлығы',
+    free: 'Тегін',
+    takenTime: 'алынды',
+    takenAlert: 'Бұл уақыт бронданды. Басқа уақытты таңдаңыз.',
+    selectPlaceFirst: 'Алдымен орын таңдаңыз',
+    selectTimeFirst: 'Уақытты таңдаңыз',
+    exceedsClose: 'Жабылу уақытынан асып кетті',
+    bookWithDuration: 'Брондау · {d}',
+    overflowWarning: 'Таңдалған ұзақтық жабылу уақытынан ({t}) асады. Сағат санын азайтыңыз немесе ертерек уақыт таңдаңыз.',
+    conflictWarning: '«{v}» мекемесінде {s}–{e} уақытына бронь бар. Бір уақытта екі жерде бола алмайсыз.',
+    bookingCreatedMsg: '{d} {date} {m} · {s}–{e} · {dur} — бронь жасалды және растауды күтуде.',
+    goToBookings: 'Менің брондарым',
+    worksAt: 'Жұмыс уақыты: {o} – {c}',
+    selectPlaceFirst2: 'Брондау үшін нақты орын немесе слот таңдаңыз.',
+    selectTimeAlert: 'Басталу уақытын таңдаңыз.',
+    conflictAlert: '"{v}" мекемесінде осы уақытқа бронь бар. Оны болдырмаңыз немесе басқа уақыт таңдаңыз.',
+    conflictBookings: 'Брондар қақтығысы',
+    person: 'қонақ',
+    personOne: '',
+    personFew: '',
+    selectService: 'Қызмет таңдаңыз',
+
+    filterAll: 'Барлығы',
+    filterInProgress: 'Үдерісте',
+    filterConfirmed: 'Расталды',
+    filterPending: 'Күтуде',
+    filterCompleted: 'Аяқталды',
+    filterCancelled: 'Болдырылмады',
+    statusPending: '⏳ Күтуде',
+    statusConfirmed: '✓ Расталды',
+    statusInProgress: '▶ Үдерісте',
+    statusCompleted: '✓ Аяқталды',
+    statusCancelled: '✕ Болдырылмады',
+    leaveReview: 'Пікір қалдыру',
+    appealRating: 'Бағаны даулау',
+    appealTitle: 'Бағаны даулау',
+    appealReason: 'Дауластыру себебі',
+    appealSent: 'Шағым жіберілді',
+    appealSentMsg: 'Әкімші қарастырады және қажет болса бағаны жояды.',
+    appealSend: 'Шағым жіберу',
+    appealOpt1: 'Баға әділетсіз',
+    appealOpt2: 'Мен себеп берген жоқпын',
+    appealOpt3: 'Ережені бұзу',
+    appealOpt4: 'Басқа',
+    noBookings: 'Брондар жоқ',
+    noBookingsFilter: '«{f}» жоқ',
+    bookFirst: 'Алғашқы орынды брондаңыз!',
+    tryFilter: 'Басқа сүзгіні қолданып көріңіз',
+    clearHistory: 'Тарихты тазалау?',
+    clearHistoryMsg: 'Барлық аяқталған және болдырылмаған брондар жойылады.',
+    noHistory: 'Тарих жоқ',
+    noHistoryMsg: 'Аяқталған немесе болдырылмаған брондар жоқ.',
+    deleted: 'Дайын',
+    deletedMsg: 'Жойылған жазбалар: {n}',
+    cancelBooking: 'Бронды болдырмау?',
+    cancelBookingMsg: 'Бұл әрекетті кері қайтару мүмкін емес.',
+    cantCancel: 'Болдырмау мүмкін болмады',
+    yes: 'Иә, болдырмау',
+    no: 'Жоқ',
+
+    // Help (FAQ) ← НОВОЕ
+    helpFaqTitle: 'Жиі қойылатын сұрақтар',
+    helpFaqSub: 'Жауапты көру үшін сұрақты басыңыз',
+    helpNotFound: 'Жауап таппадыңыз ба?',
+    helpContact: 'Бізге жазыңыз: support@bookmate.kz',
+    helpQ1: 'Орын қалай брондауға болады?',
+    helpA1: 'Мекемені ашыңыз → "Брондау" батырмасын басыңыз → күн, уақыт және слотты таңдаңыз → бронды растаңыз.',
+    helpQ2: 'Бронды болдырмауға бола ма?',
+    helpA2: 'Иә. "Брондар" бөліміне өтіңіз → қажетті бронды тауып → "Бас тарту" батырмасын басыңыз.',
+    helpQ3: 'Слот неліктен бұғатталған?',
+    helpA3: 'Слотты басқа пайдаланушы таңдаған уақытқа алды. Басқа уақытты немесе слотты таңдаңыз.',
+    helpQ4: 'Таңдаулыларға қалай қосуға болады?',
+    helpA4: 'Мекеме бетінде жоғарғы оң жақтағы ❤️ белгішесін басыңыз. Барлық таңдаулылар Профиль → Таңдаулылар бөлімінде.',
+    helpQ5: 'Растау қашан келеді?',
+    helpA5: 'Мекеме бронды қолмен растайды. Бұл әдетте бірнеше минуттан 1 сағатқа дейін алады. Қолданбада хабарлама аласыз.',
+    helpQ6: 'Тілді қалай ауыстыруға болады?',
+    helpA6: 'Профиль → Баптаулар → тілді (RU/KK) ауыстыру үшін басыңыз.',
+    helpQ7: 'Профиль суретін қалай өзгертуге болады?',
+    helpA7: 'Профиль → аватарды (әріпті шеңберді) басыңыз → галереядан фото таңдаңыз.',
+    helpQ8: 'Клиент рейтингі дегеніміз не?',
+    helpA8: 'Клиент рейтингі — пайдаланушы ретіндегі сенімділік бағасы. 5.00-ден басталады. Мекемелер аяқталған брондардан кейін баға қоя алады.',
   },
 };
 

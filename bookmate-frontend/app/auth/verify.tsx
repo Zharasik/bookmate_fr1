@@ -1,9 +1,8 @@
 import { useState, useRef } from 'react';
 import {
   View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator,
-  Alert, KeyboardAvoidingView, Platform, ScrollView,
+  Alert, Keyboard, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -36,17 +35,8 @@ export default function VerifyEmailScreen() {
     if (!val && idx > 0) refs.current[idx - 1]?.focus();
   };
 
-   
-  const pasteCode = (fullCode: string) => {
-    const digits = fullCode.replace(/\D/g, '').slice(0, 6).split('');
-    if (digits.length === 6) {
-      setCode(digits);
-      refs.current[5]?.focus();
-    }
-  };
-
-  const handleVerify = async () => {
-    const fullCode = code.join('');
+  const handleVerify = async (digits?: string[]) => {
+    const fullCode = (digits ?? code).join('');
     if (fullCode.length < 6) { setError('Введите все 6 цифр'); return; }
     setLoading(true);
     setError('');
@@ -58,6 +48,15 @@ export default function VerifyEmailScreen() {
       setError(e.message || 'Неверный код');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const pasteCode = (fullCode: string) => {
+    const digits = fullCode.replace(/\D/g, '').slice(0, 6).split('');
+    if (digits.length === 6) {
+      setCode(digits);
+      Keyboard.dismiss();
+      setTimeout(() => handleVerify(digits), 300);
     }
   };
 
@@ -79,18 +78,12 @@ export default function VerifyEmailScreen() {
   };
 
   const copyCode = () => {
-    if (devCode) {
-      Clipboard.setStringAsync(devCode);
-      pasteCode(devCode);
-    }
+    if (devCode) pasteCode(devCode);
   };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]}>
-      <LinearGradient
-        colors={['#EFF6FF', '#DBEAFE', '#F9FAFB']}
-        style={StyleSheet.absoluteFillObject}
-      />
+      <LinearGradient colors={['#EFF6FF', '#DBEAFE', '#F9FAFB']} style={StyleSheet.absoluteFillObject} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.kav}>
         <ScrollView contentContainerStyle={styles.inner} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
@@ -138,15 +131,13 @@ export default function VerifyEmailScreen() {
             ))}
           </View>
 
-          <Pressable onPress={handleVerify} disabled={loading} style={{ width: '100%', marginBottom: 16 }}>
+          <Pressable onPress={() => handleVerify()} disabled={loading} style={{ width: '100%', marginBottom: 16 }}>
             <LinearGradient
               colors={loading ? ['#93C5FD', '#93C5FD'] : ['#2563EB', '#3B82F6']}
               style={styles.btn}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
             >
-              {loading
-                ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.btnText}>Подтвердить</Text>}
+              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Подтвердить</Text>}
             </LinearGradient>
           </Pressable>
 
@@ -173,12 +164,7 @@ const styles = StyleSheet.create({
   iconCircle: { width: 76, height: 76, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
   title: { fontSize: 24, fontWeight: '800', marginBottom: 10, textAlign: 'center' },
   sub: { fontSize: 14, textAlign: 'center', lineHeight: 22, marginBottom: 24 },
-  devBox: {
-    width: '100%', backgroundColor: '#FEF3C7', borderRadius: 14,
-    borderWidth: 1, borderColor: '#F59E0B',
-    padding: 14, marginBottom: 20,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-  },
+  devBox: { width: '100%', backgroundColor: '#FEF3C7', borderRadius: 14, borderWidth: 1, borderColor: '#F59E0B', padding: 14, marginBottom: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   devLeft: { flex: 1 },
   devLabel: { color: '#92400E', fontSize: 12, fontWeight: '700' },
   devHint: { color: '#B45309', fontSize: 11, marginTop: 2 },

@@ -1,5 +1,6 @@
 {
   "dependencies": {
-    "expo": "^55.0.17"
+    "expo": "^55.0.24",
+    "react-native-pager-view": "8.0.0"
   }
 }

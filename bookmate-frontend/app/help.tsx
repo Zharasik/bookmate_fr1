@@ -3,42 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, ChevronDown, ChevronUp } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
-import { useTheme } from '../hooks/useHelpers';
-
-const FAQ = [
-  {
-    q: 'Как забронировать место?',
-    a: 'Откройте заведение → нажмите "Забронировать" → выберите дату, время и слот → подтвердите бронь. Заведение получит уведомление и подтвердит вашу бронь.',
-  },
-  {
-    q: 'Можно ли отменить бронь?',
-    a: 'Да. Перейдите в раздел "Брони" → найдите нужную бронь → нажмите "Отменить". Отмена доступна для статусов "Ожидает" и "Подтверждена".',
-  },
-  {
-    q: 'Почему слот заблокирован?',
-    a: 'Слот уже занят другим пользователем на выбранное время. Выберите другое время или другой слот.',
-  },
-  {
-    q: 'Как добавить в избранное?',
-    a: 'На странице заведения нажмите иконку ❤️ в правом верхнем углу. Все избранные заведения доступны в разделе Профиль → Избранное.',
-  },
-  {
-    q: 'Когда придёт подтверждение?',
-    a: 'Заведение подтверждает бронь вручную. Обычно это занимает от нескольких минут до 1 часа. Вы получите уведомление в приложении.',
-  },
-  {
-    q: 'Как сменить язык?',
-    a: 'Профиль → Настройки → нажмите на язык (RU/KK) чтобы переключить.',
-  },
-  {
-    q: 'Как изменить фото профиля?',
-    a: 'Профиль → нажмите на аватар (кружок с буквой) → выберите фото из галереи.',
-  },
-  {
-    q: 'Что такое рейтинг клиента?',
-    a: 'Рейтинг клиента — оценка вашей надёжности как пользователя. Начинается с 5.00. Заведения могут оставлять оценку после завершённых бронирований.',
-  },
-];
+import { useTheme, useT } from '../hooks/useHelpers';
 
 function FAQItem({ item }: { item: { q: string; a: string } }) {
   const c = useTheme();
@@ -65,6 +30,12 @@ function FAQItem({ item }: { item: { q: string; a: string } }) {
 export default function HelpScreen() {
   const router = useRouter();
   const c = useTheme();
+  const t = useT();
+
+  const FAQ = [1, 2, 3, 4, 5, 6, 7, 8].map(i => ({
+    q: t(`helpQ${i}`),
+    a: t(`helpA${i}`),
+  }));
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]} edges={['top']}>
@@ -72,18 +43,15 @@ export default function HelpScreen() {
         <Pressable style={styles.back} onPress={() => router.back()}>
           <ChevronLeft size={24} color={c.text} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: c.text }]}>Помощь</Text>
+        <Text style={[styles.headerTitle, { color: c.text }]}>{t('helpSupport')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.inner} showsVerticalScrollIndicator={false}>
-
         <View style={[styles.banner, { backgroundColor: c.primaryLight }]}>
           <Text style={{ fontSize: 32, marginBottom: 8 }}>💬</Text>
-          <Text style={[styles.bannerTitle, { color: c.primary }]}>FAQ — Частые вопросы</Text>
-          <Text style={[styles.bannerSub, { color: c.textSecondary }]}>
-            Нажмите на вопрос чтобы увидеть ответ
-          </Text>
+          <Text style={[styles.bannerTitle, { color: c.primary }]}>{t('helpFaqTitle')}</Text>
+          <Text style={[styles.bannerSub, { color: c.textSecondary }]}>{t('helpFaqSub')}</Text>
         </View>
 
         {FAQ.map((item, i) => (
@@ -91,12 +59,9 @@ export default function HelpScreen() {
         ))}
 
         <View style={[styles.contact, { backgroundColor: c.card }]}>
-          <Text style={[styles.contactTitle, { color: c.text }]}>Не нашли ответ?</Text>
-          <Text style={[styles.contactSub, { color: c.textSecondary }]}>
-            Напишите нам: support@bookmate.kz
-          </Text>
+          <Text style={[styles.contactTitle, { color: c.text }]}>{t('helpNotFound')}</Text>
+          <Text style={[styles.contactSub, { color: c.textSecondary }]}>{t('helpContact')}</Text>
         </View>
-
       </ScrollView>
     </SafeAreaView>
   );

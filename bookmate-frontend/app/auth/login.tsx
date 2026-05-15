@@ -7,6 +7,7 @@ import { Eye, EyeOff, Mail, Lock } from 'lucide-react-native';
 import { useStore } from '../../hooks/useStore';
 import { useTheme, useT } from '../../hooks/useHelpers';
 import { api } from '../../services/api';
+import { useWindowDimensions } from 'react-native';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -17,6 +18,8 @@ export default function LoginScreen() {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 768;
 
   const handleLogin = async () => {
     if (!email.trim() || !password) return;
