@@ -11,37 +11,38 @@ import { formatPhone } from '../../constants/phoneUtils';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const PHONE_RE = /^\+7 \d{3} \d{3} \d{2} \d{2}$/;
 
-function validateName(v: string) {
-  if (!v.trim()) return 'Введите имя';
-  if (v.trim().length < 2) return 'Имя минимум 2 символа';
-  if (/\d/.test(v)) return 'Имя не должно содержать цифры';
+function validateName(v: string, t: (k: string) => string) {
+  if (!v.trim()) return t('errNameRequired');
+  if (v.trim().length < 2) return t('errNameShort');
+  if (/\d/.test(v)) return t('errNameDigits');
   return '';
 }
 
-function validateEmail(v: string) {
-  if (!v.trim()) return 'Введите email';
-  if (!EMAIL_RE.test(v.trim())) return 'Некорректный email адрес';
+function validateEmail(v: string, t: (k: string) => string) {
+  if (!v.trim()) return t('errEmailRequired');
+  if (!EMAIL_RE.test(v.trim())) return t('errEmailInvalid');
   return '';
 }
 
-function validatePhone(v: string) {
+function validatePhone(v: string, t: (k: string) => string) {
   if (!v) return '';
-  if (!PHONE_RE.test(v)) return 'Формат: +7 777 777 77 77';
+  if (!PHONE_RE.test(v)) return t('errPhoneFormat');
   return '';
 }
 
-function validatePassword(v: string) {
-  if (!v) return 'Введите пароль';
-  if (v.length < 8) return 'Пароль минимум 8 символов';
-  if (!/[A-Z]/.test(v)) return 'Нужна хотя бы одна заглавная буква';
-  if (!/[a-z]/.test(v)) return 'Нужна хотя бы одна строчная буква';
-  if (!/\d/.test(v)) return 'Нужна хотя бы одна цифра';
+function validatePassword(v: string, t: (k: string) => string) {
+  if (!v) return t('errPassRequired');
+  if (v.length < 8) return t('errPassShort');
+  if (!/[A-Z]/.test(v)) return t('errPassUpper');
+  if (!/[a-z]/.test(v)) return t('errPassLower');
+  if (!/\d/.test(v)) return t('errPassDigit');
   return '';
 }
 
 export default function RegisterScreen() {
   const router = useRouter();
-  const c = useTheme(); const t = useT();
+  const c = useTheme();
+  const t = useT();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -51,28 +52,37 @@ export default function RegisterScreen() {
   const [touched, setTouched] = useState({ name: false, email: false, phone: false, password: false });
   const [serverError, setServerError] = useState('');
 
-  const nameErr = touched.name ? validateName(name) : '';
-  const emailErr = touched.email ? validateEmail(email) : '';
-  const phoneErr = touched.phone ? validatePhone(phone) : '';
-  const passErr = touched.password ? validatePassword(password) : '';
+  const nameErr = touched.name ? validateName(name, t) : '';
+  const emailErr = touched.email ? validateEmail(email, t) : '';
+  const phoneErr = touched.phone ? validatePhone(phone, t) : '';
+  const passErr = touched.password ? validatePassword(password, t) : '';
 
   const touch = (field: keyof typeof touched) =>
     setTouched(prev => ({ ...prev, [field]: true }));
 
   const handleRegister = async () => {
     setTouched({ name: true, email: true, phone: true, password: true });
-    const e1 = validateName(name);
-    const e2 = validateEmail(email);
-    const e3 = validatePhone(phone);
-    const e4 = validatePassword(password);
+    const e1 = validateName(name, t);
+    const e2 = validateEmail(email, t);
+    const e3 = validatePhone(phone, t);
+    const e4 = validatePassword(password, t);
     if (e1 || e2 || e3 || e4) return;
 
-    setLoading(true); setServerError('');
+    setLoading(true);
+    setServerError('');
     try {
       const res = await api.register(email.trim().toLowerCase(), password, name.trim(), phone || undefined, 'user');
       router.push({ pathname: '/auth/verify', params: { userId: res.userId, email: res.email, devCode: res.dev_code || '' } } as any);
-    } catch (e: any) { setServerError(e.message || t('registerError')); }
-    finally { setLoading(false); }
+    } catch (e: any) {
+  const msg = e.message || '';
+  if (msg.includes('уже существует')) {
+    setServerError(t('errEmailExists'));
+  } else {
+    setServerError(msg || t('registerError'));
+  }
+} finally {
+      setLoading(false);
+    }
   };
 
   const inputBorder = (err: string, isTouched: boolean) => ({
@@ -89,7 +99,7 @@ export default function RegisterScreen() {
               <Text style={{ fontSize: 30 }}>📅</Text>
             </LinearGradient>
             <Text style={[styles.logoText, { color: c.primary }]}>BookMate</Text>
-            <Text style={[styles.subtitle, { color: c.textSecondary }]}>Создайте аккаунт</Text>
+            <Text style={[styles.subtitle, { color: c.textSecondary }]}>{t('createAccount')}</Text>
           </View>
 
           <View style={[styles.card, { backgroundColor: c.card }]}>
@@ -161,7 +171,7 @@ export default function RegisterScreen() {
             </View>
             {!!passErr && <Text style={styles.fieldErr}>{passErr}</Text>}
             {!passErr && touched.password && password.length > 0 && (
-              <Text style={styles.passHint}>Мин. 8 символов · Загл. буква · Строчная · Цифра</Text>
+              <Text style={styles.passHint}>{t('passHint')}</Text>
             )}
 
             <Pressable onPress={handleRegister} disabled={loading} style={{ marginTop: 12 }}>

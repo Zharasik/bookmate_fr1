@@ -42,8 +42,7 @@ export default function ProfileScreen() {
     }
     return new Promise((resolve) => {
       Alert.alert(
-        t('logOut'),
-        '',
+        t('logOut'), '',
         [
           { text: t('back'), style: 'cancel', onPress: () => resolve(false) },
           { text: t('ok'), style: 'destructive', onPress: () => resolve(true) },
@@ -62,15 +61,21 @@ export default function ProfileScreen() {
 
   const handleAvatarPick = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') { Alert.alert('Нет доступа', 'Разрешите доступ к фото'); return; }
+    if (status !== 'granted') {
+      Alert.alert(t('error'), t('noPhotoAccess'));
+      return;
+    }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.8 });
     if (result.canceled || !result.assets[0]) return;
     setUploadingAvatar(true);
     try {
       const res = await api.uploadAvatar(result.assets[0].uri);
       if (res.avatar_url) updateUser({ avatar_url: res.avatar_url });
-    } catch (e: any) { Alert.alert(t('error'), e.message); }
-    finally { setUploadingAvatar(false); }
+    } catch (e: any) {
+      Alert.alert(t('error'), e.message);
+    } finally {
+      setUploadingAvatar(false);
+    }
   };
 
   const isBusiness = user?.role === 'business_owner' || user?.role === 'admin';
@@ -90,18 +95,23 @@ export default function ProfileScreen() {
 
   const submitApplication = async () => {
     if (!applyForm.business_name || !applyForm.category || !applyForm.location) {
-      Alert.alert('Ошибка', 'Заполните название, категорию и адрес'); return;
+      Alert.alert(t('error'), t('applyFillRequired'));
+      return;
     }
     setApplyLoading(true);
     try {
       const app = await api.submitApplication(applyForm);
       setMyApplication(app);
       setApplyForm({ business_name: '', category: '', location: '', description: '', phone: '' });
-      Alert.alert('✓ Заявка отправлена', 'Ваша заявка отправлена на рассмотрение администратору. Мы уведомим вас о решении.');
+      Alert.alert(t('applySubmit'), t('applySubmitMsg'));
       setApplyModal(false);
-    } catch (e: any) { Alert.alert('Ошибка', e.message); }
-    finally { setApplyLoading(false); }
+    } catch (e: any) {
+      Alert.alert(t('error'), e.message);
+    } finally {
+      setApplyLoading(false);
+    }
   };
+
   const rating = user?.client_rating ?? 5.0;
 
   return (
@@ -117,7 +127,9 @@ export default function ProfileScreen() {
               ? <View style={[styles.avatarCircle, { backgroundColor: 'rgba(255,255,255,0.2)' }]}><ActivityIndicator color="#fff" /></View>
               : user?.avatar_url
                 ? <Image source={{ uri: user.avatar_url }} style={styles.avatarImg} />
-                : <View style={[styles.avatarCircle, { backgroundColor: 'rgba(255,255,255,0.2)' }]}><Text style={styles.avatarInitial}>{user?.name?.[0]?.toUpperCase() || 'U'}</Text></View>}
+                : <View style={[styles.avatarCircle, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                    <Text style={styles.avatarInitial}>{user?.name?.[0]?.toUpperCase() || 'U'}</Text>
+                  </View>}
             <View style={styles.cameraBtn}><Camera size={12} color="#fff" /></View>
           </Pressable>
           <Text style={styles.heroName}>{user?.name || 'User'}</Text>
@@ -152,75 +164,82 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        {/* Apply modal */}
         <Modal visible={applyModal} transparent animationType="slide">
-  <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-    <ScrollView style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}
-      contentContainerStyle={{ padding: 24, paddingBottom: 48 }}
-      keyboardShouldPersistTaps="handled">
-      <Text style={{ fontSize: 20, fontWeight: '800', color: c.text, marginBottom: 4 }}>{t('applyTitle')}</Text>
-      <Text style={{ fontSize: 14, color: c.textSecondary, marginBottom: 20 }}>{t('applySub')}</Text>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+            <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%' }}>
+              <ScrollView
+                contentContainerStyle={{ padding: 24, paddingBottom: 48 }}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                <Text style={{ fontSize: 20, fontWeight: '800', color: c.text, marginBottom: 4 }}>{t('applyTitle')}</Text>
+                <Text style={{ fontSize: 14, color: c.textSecondary, marginBottom: 20 }}>{t('applySub')}</Text>
 
-      {myApplication?.status === 'pending' && (
-        <View style={{ backgroundColor: '#FEF3C7', borderRadius: 12, padding: 14, marginBottom: 16 }}>
-          <Text style={{ color: '#92400E', fontWeight: '600' }}>{t('applyPending')}</Text>
-        </View>
-      )}
-      {myApplication?.status === 'rejected' && (
-        <View style={{ backgroundColor: '#FEE2E2', borderRadius: 12, padding: 14, marginBottom: 16 }}>
-          <Text style={{ color: '#991B1B', fontWeight: '600' }}>{t('applyRejected')}{myApplication.admin_note ? ': ' + myApplication.admin_note : ''}</Text>
-          <Text style={{ color: '#991B1B', fontSize: 12, marginTop: 4 }}>{t('applyCanResubmit')}</Text>
-        </View>
-      )}
-      {myApplication?.status === 'approved' && (
-        <View style={{ backgroundColor: '#D1FAE5', borderRadius: 12, padding: 14, marginBottom: 16 }}>
-          <Text style={{ color: '#065F46', fontWeight: '600' }}>{t('applyApproved')}</Text>
-          <Text style={{ color: '#065F46', fontSize: 12, marginTop: 4 }}>{t('applyApprovedSub')}</Text>
-        </View>
-      )}
+                {myApplication?.status === 'pending' && (
+                  <View style={{ backgroundColor: '#FEF3C7', borderRadius: 12, padding: 14, marginBottom: 16 }}>
+                    <Text style={{ color: '#92400E', fontWeight: '600' }}>{t('applyPending')}</Text>
+                  </View>
+                )}
+                {myApplication?.status === 'rejected' && (
+                  <View style={{ backgroundColor: '#FEE2E2', borderRadius: 12, padding: 14, marginBottom: 16 }}>
+                    <Text style={{ color: '#991B1B', fontWeight: '600' }}>{t('applyRejected')}{myApplication.admin_note ? ': ' + myApplication.admin_note : ''}</Text>
+                    <Text style={{ color: '#991B1B', fontSize: 12, marginTop: 4 }}>{t('applyCanResubmit')}</Text>
+                  </View>
+                )}
+                {myApplication?.status === 'approved' && (
+                  <View style={{ backgroundColor: '#D1FAE5', borderRadius: 12, padding: 14, marginBottom: 16 }}>
+                    <Text style={{ color: '#065F46', fontWeight: '600' }}>{t('applyApproved')}</Text>
+                    <Text style={{ color: '#065F46', fontSize: 12, marginTop: 4 }}>{t('applyApprovedSub')}</Text>
+                  </View>
+                )}
 
-      {[
-        { key: 'business_name', label: t('applyFieldName'),     placeholder: t('applyFieldNamePh') },
-        { key: 'category',      label: t('applyFieldCategory'), placeholder: t('applyFieldCategoryPh') },
-        { key: 'location',      label: t('applyFieldLocation'), placeholder: t('applyFieldLocationPh') },
-        { key: 'phone',         label: t('applyFieldPhone'),    placeholder: t('applyFieldPhonePh') },
-        { key: 'description',   label: t('applyFieldDesc'),     placeholder: t('applyFieldDescPh') },
-      ].map(f => (
-        <View key={f.key} style={{ marginBottom: 12 }}>
-          <Text style={{ fontSize: 13, fontWeight: '600', color: c.text, marginBottom: 6 }}>{f.label}</Text>
-          <TextInput
-            style={{ borderWidth: 1.5, borderColor: c.border, borderRadius: 12, padding: 12, fontSize: 14, color: c.text, backgroundColor: c.bg }}
-            placeholder={f.placeholder} placeholderTextColor={c.textMuted}
-            value={(applyForm as any)[f.key]}
-            onChangeText={v => setApplyForm(p => ({ ...p, [f.key]: v }))}
-            multiline={f.key === 'description'}
-          />
-        </View>
-      ))}
+                {[
+                  { key: 'business_name', label: t('applyFieldName'),     placeholder: t('applyFieldNamePh') },
+                  { key: 'category',      label: t('applyFieldCategory'), placeholder: t('applyFieldCategoryPh') },
+                  { key: 'location',      label: t('applyFieldLocation'), placeholder: t('applyFieldLocationPh') },
+                  { key: 'phone',         label: t('applyFieldPhone'),    placeholder: t('applyFieldPhonePh') },
+                  { key: 'description',   label: t('applyFieldDesc'),     placeholder: t('applyFieldDescPh') },
+                ].map(f => (
+                  <View key={f.key} style={{ marginBottom: 12 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: c.text, marginBottom: 6 }}>{f.label}</Text>
+                    <TextInput
+                      style={{ borderWidth: 1.5, borderColor: c.border, borderRadius: 12, padding: 12, fontSize: 14, color: c.text, backgroundColor: c.bg }}
+                      placeholder={f.placeholder}
+                      placeholderTextColor={c.textMuted}
+                      value={(applyForm as any)[f.key]}
+                      onChangeText={v => setApplyForm(p => ({ ...p, [f.key]: v }))}
+                      multiline={f.key === 'description'}
+                    />
+                  </View>
+                ))}
 
-      <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
-        <Pressable style={{ flex: 1, padding: 16, borderRadius: 14, borderWidth: 1.5, borderColor: c.border, alignItems: 'center' }}
-          onPress={() => setApplyModal(false)}>
-          <Text style={{ fontWeight: '600', color: c.text }}>{t('cancel')}</Text>
-        </Pressable>
-        <Pressable style={{ flex: 1, padding: 16, borderRadius: 14, backgroundColor: c.primary, alignItems: 'center' }}
-          onPress={submitApplication} disabled={applyLoading || myApplication?.status === 'pending' || myApplication?.status === 'approved'}>
-          {applyLoading
-            ? <ActivityIndicator color="#fff" size="small" />
-            : <Text style={{ fontWeight: '700', color: '#fff' }}>
-                {myApplication?.status === 'pending'
-                  ? t('applyStatusPending')
-                  : myApplication?.status === 'approved'
-                    ? t('applyStatusApproved')
-                    : t('applySubmit')}
-              </Text>}
-        </Pressable>
-      </View>
-    </ScrollView>
-  </View>
-</Modal>
-
-
+                <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
+                  <Pressable
+                    style={{ flex: 1, padding: 16, borderRadius: 14, borderWidth: 1.5, borderColor: c.border, alignItems: 'center' }}
+                    onPress={() => setApplyModal(false)}
+                  >
+                    <Text style={{ fontWeight: '600', color: c.text }}>{t('cancel')}</Text>
+                  </Pressable>
+                  <Pressable
+                    style={{ flex: 1, padding: 16, borderRadius: 14, backgroundColor: c.primary, alignItems: 'center' }}
+                    onPress={submitApplication}
+                    disabled={applyLoading || myApplication?.status === 'pending' || myApplication?.status === 'approved'}
+                  >
+                    {applyLoading
+                      ? <ActivityIndicator color="#fff" size="small" />
+                      : <Text style={{ fontWeight: '700', color: '#fff' }}>
+                          {myApplication?.status === 'pending'
+                            ? t('applyStatusPending')
+                            : myApplication?.status === 'approved'
+                              ? t('applyStatusApproved')
+                              : t('applySubmit')}
+                        </Text>}
+                  </Pressable>
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
 
         <View style={[styles.section, { backgroundColor: c.card }]}>
           <Text style={[styles.sectionLabel, { color: c.textMuted }]}>{t('accountSection')}</Text>
@@ -237,7 +256,9 @@ export default function ProfileScreen() {
           <Pressable style={styles.row} onPress={() => setLang(lang === 'ru' ? 'kk' : 'ru')}>
             <View style={[styles.rowIcon, { backgroundColor: '#10B98120' }]}><Globe size={20} color="#10B981" /></View>
             <Text style={[styles.rowLabel, { color: c.text }]}>{t('language')}</Text>
-            <View style={[styles.langBadge, { backgroundColor: c.primaryLight }]}><Text style={{ color: c.primary, fontWeight: '800', fontSize: 13 }}>{lang.toUpperCase()}</Text></View>
+            <View style={[styles.langBadge, { backgroundColor: c.primaryLight }]}>
+              <Text style={{ color: c.primary, fontWeight: '800', fontSize: 13 }}>{lang.toUpperCase()}</Text>
+            </View>
           </Pressable>
           <Pressable style={styles.row} onPress={() => router.push('/settings' as any)}>
             <View style={[styles.rowIcon, { backgroundColor: `${c.textSecondary}20` }]}><Settings size={20} color={c.textSecondary} /></View>
