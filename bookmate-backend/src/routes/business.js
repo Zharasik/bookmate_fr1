@@ -289,7 +289,14 @@ router.get("/bookings", async (req, res) => {
     }
     if (date) {
       params.push(date);
-      sql += ` AND b.date=$${params.length}`;
+      sql += ` AND b.date <= $${params.length}::date
+        AND COALESCE(
+          b.end_date,
+          CASE WHEN b.end_time IS NOT NULL AND b.end_time <= b.time
+            THEN b.date + 1
+            ELSE b.date
+          END
+        ) >= $${params.length}::date`;
     }
 
     sql += ` ORDER BY CASE b.status WHEN 'in_progress' THEN 1 WHEN 'confirmed' THEN 2 WHEN 'pending' THEN 3 WHEN 'completed' THEN 4 WHEN 'cancelled' THEN 5 ELSE 6 END, b.date DESC, b.time DESC`;

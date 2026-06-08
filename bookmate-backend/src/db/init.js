@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   slot_id    UUID,
   date       DATE NOT NULL,
   time       TEXT NOT NULL,
+  end_date   DATE,
   end_time   TEXT,
   guests     INTEGER DEFAULT 1,
   total_price INTEGER DEFAULT 0,
@@ -220,6 +221,7 @@ END $$;
 -- Add bookings columns expected by routes
 DO $$ BEGIN
   ALTER TABLE bookings ADD COLUMN IF NOT EXISTS slot_id UUID;
+  ALTER TABLE bookings ADD COLUMN IF NOT EXISTS end_date DATE;
   ALTER TABLE bookings ADD COLUMN IF NOT EXISTS end_time TEXT;
   ALTER TABLE bookings ADD COLUMN IF NOT EXISTS total_price INTEGER DEFAULT 0;
   ALTER TABLE bookings ADD COLUMN IF NOT EXISTS client_rated_at TIMESTAMPTZ;
@@ -327,6 +329,18 @@ DO $$ BEGIN
     'HH24:MI'
   )
   WHERE end_time IS NULL;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+-- Backfill end_date for existing bookings. If end_time wraps to the next
+-- clock day (e.g. 23:00 -> 01:00), the booking ends on date + 1.
+DO $$ BEGIN
+  UPDATE bookings
+  SET end_date = CASE
+    WHEN end_time IS NOT NULL AND end_time <= time THEN date + 1
+    ELSE date
+  END
+  WHERE end_date IS NULL;
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 `;

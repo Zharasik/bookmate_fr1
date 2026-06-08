@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator,
 } from 'react-native';
@@ -29,6 +29,62 @@ function addMin(t: string, mins: number): string {
   return minToTime(timeToMin(t) + mins);
 }
 
+function formatLocalDateISO(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function addDaysISO(date: string, days: number): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function dateOnly(dateValue?: string): string {
+  return dateValue ? String(dateValue).split('T')[0] : '';
+}
+
+// Formats the booking's date for display, e.g. "Пн, 8 Июн" for a same-day
+// booking, or "8–9 Июн" / "30 Июн – 1 Июл" when the booking spans midnight
+// and ends on the following calendar date — so users see "8-9 June" instead
+// of being told the whole overnight range happened on the start date alone.
+function formatBookingDate(startISO: string, endISO: string, lang: string): string {
+  const days = lang === 'kk' ? DAYS_KK : DAYS_RU;
+  const months = lang === 'kk' ? MONTHS_KK : MONTHS_RU;
+  const s = new Date(`${startISO}T00:00:00Z`);
+  if (startISO === endISO) {
+    return `${days[s.getUTCDay()]}, ${s.getUTCDate()} ${months[s.getUTCMonth()]}`;
+  }
+  const e = new Date(`${endISO}T00:00:00Z`);
+  return s.getUTCMonth() === e.getUTCMonth()
+    ? `${s.getUTCDate()}–${e.getUTCDate()} ${months[s.getUTCMonth()]}`
+    : `${s.getUTCDate()} ${months[s.getUTCMonth()]} – ${e.getUTCDate()} ${months[e.getUTCMonth()]}`;
+}
+
+function dateDiffDays(aDate: string, bDate: string): number {
+  const a = new Date(`${aDate}T00:00:00Z`).getTime();
+  const b = new Date(`${bDate}T00:00:00Z`).getTime();
+  return Math.round((b - a) / 86400000);
+}
+
+function rangesOverlapByDate(
+  aDate: string, aStart: string, aEnd: string,
+  bDate: string, bStart: string, bEnd: string,
+): boolean {
+  const dayOffset = dateDiffDays(aDate, bDate);
+  let aStartMin = timeToMin(aStart);
+  let aEndMin = timeToMin(aEnd);
+  if (aEndMin <= aStartMin) aEndMin += 24 * 60;
+
+  let bStartMin = timeToMin(bStart) + dayOffset * 24 * 60;
+  let bEndMin = timeToMin(bEnd) + dayOffset * 24 * 60;
+  if (bEndMin <= bStartMin) bEndMin += 24 * 60;
+
+  return aStartMin < bEndMin && bStartMin < aEndMin;
+}
+
 function formatDuration(min: number, lang: string): string {
   if (min < 60) return `${min} мин`;
   const h = Math.floor(min / 60);
@@ -39,9 +95,12 @@ function formatDuration(min: number, lang: string): string {
 
 function isPastTime(t: string, isToday: boolean): boolean {
   if (!isToday) return false;
+  // Bookings are stored as `date` + literal clock `time`, so e.g. "00:00" on the
+  // selected date means "00:00 today" — compare against the current clock time
+  // directly (no overnight adjustment), so already-passed early hours like
+  // 00:00/01:00 are correctly disabled once the day has moved past them.
   const now = new Date();
-  const [h, m] = t.split(':').map(Number);
-  return h < now.getHours() || (h === now.getHours() && m <= now.getMinutes());
+  return timeToMin(t) <= now.getHours() * 60 + now.getMinutes();
 }
 
 function normalizeOvernight(rawMin: number, openMin: number, overnight: boolean): number {
@@ -64,12 +123,21 @@ function hasOverlap(
 function generateTimeGrid(openTime: string, closeTime: string, durationMin: number): string[] {
   const open = timeToMin(openTime);
   let close = timeToMin(closeTime);
-  if (close <= open) close += 24 * 60;
+  const overnight = close <= open;
+  if (overnight) close += 24 * 60;
   const result: string[] = [];
   let cur = open;
   while (cur + durationMin <= close) {
     result.push(minToTime(cur));
     cur += durationMin;
+  }
+  if (overnight) {
+    // Hours that wrap past midnight (e.g. 00:00, 01:00) belong earlier in the
+    // calendar day than the venue's opening hour — show them first so the list
+    // reads in natural chronological order (00:00 → ... → 23:00).
+    const wrapped = result.filter((tm) => timeToMin(tm) < open);
+    const sameDay = result.filter((tm) => timeToMin(tm) >= open);
+    return [...wrapped, ...sameDay];
   }
   return result;
 }
@@ -90,19 +158,21 @@ export default function BookScreen() {
   const t = useT();
   const lang = useStore((s) => s.lang);
 
-  const DAYS = lang === 'kk' ? DAYS_KK : DAYS_RU;
-  const MONTHS = lang === 'kk' ? MONTHS_KK : MONTHS_RU;
+  const dates = useMemo(() => {
+    const days = lang === 'kk' ? DAYS_KK : DAYS_RU;
+    const months = lang === 'kk' ? MONTHS_KK : MONTHS_RU;
 
-  const dates = Array.from({ length: 14 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() + i);
-    return {
-      day: DAYS[d.getDay()],
-      date: d.getDate(),
-      month: MONTHS[d.getMonth()],
-      iso: d.toISOString().split('T')[0],
-    };
-  });
+    return Array.from({ length: 14 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      return {
+        day: days[d.getDay()],
+        date: d.getDate(),
+        month: months[d.getMonth()],
+        iso: formatLocalDateISO(d),
+      };
+    });
+  }, [lang]);
 
   const dur = (min: number) => formatDuration(min, lang);
 
@@ -139,10 +209,9 @@ export default function BookScreen() {
       ]);
       setSlotData(avail.slots);
       setVenueRanges(avail.venue_ranges ?? []);
-      const iso = dates[selectedDateIdx].iso;
       setUserBookings(
         (myBookings as any[]).filter(
-          (b) => String(b.date).split('T')[0] === iso && !['cancelled'].includes(b.status),
+          (b) => !['cancelled'].includes(b.status),
         ),
       );
       if (selectedSlotId) {
@@ -152,7 +221,7 @@ export default function BookScreen() {
     } catch {
       setSlotData([]); setVenueRanges([]);
     } finally { setLoadingAvail(false); }
-  }, [id, venue, selectedDateIdx]);
+  }, [id, venue, dates, selectedDateIdx, selectedSlotId]);
 
   useEffect(() => { loadAvailability(); }, [loadAvailability]);
 
@@ -165,6 +234,10 @@ export default function BookScreen() {
   const slotDuration = selectedSlot?.duration ?? 60;
   const totalDuration = slotDuration * units;
   const endTime = selectedTime ? addMin(selectedTime, totalDuration) : null;
+  const selectedDateISO = dates[selectedDateIdx].iso;
+  const endDateISO = selectedTime && endTime && timeToMin(endTime) <= timeToMin(selectedTime)
+    ? addDaysISO(selectedDateISO, 1)
+    : selectedDateISO;
   const openTime = venue?.open_time ?? '09:00';
   const closeTime = venue?.close_time ?? '22:00';
   const timeGrid = generateTimeGrid(openTime, closeTime, slotDuration);
@@ -196,13 +269,16 @@ export default function BookScreen() {
 
   function userConflicts(): any[] {
     if (!selectedTime || !endTime) return [];
-    const startAdj = toAdj(selectedTime);
-    const endAdj = startAdj + totalDuration;
     return userBookings.filter((b) => {
       if (b.venue_id === venue?.id) return false;
-      const bStart = timeToMin(b.time);
-      const bEnd = b.end_time ? timeToMin(b.end_time) : bStart + 60;
-      return startAdj < bEnd && bStart < endAdj;
+      return rangesOverlapByDate(
+        selectedDateISO,
+        selectedTime,
+        endTime,
+        dateOnly(b.date),
+        b.time,
+        b.end_time ?? addMin(b.time, 60),
+      );
     });
   }
 
@@ -252,9 +328,7 @@ export default function BookScreen() {
       Alert.alert(
         '✓ ' + t('bookingConfirmed'),
         t('bookingCreatedMsg')
-          .replace('{d}', dates[selectedDateIdx].day)
-          .replace('{date}', String(dates[selectedDateIdx].date))
-          .replace('{m}', dates[selectedDateIdx].month)
+          .replace('{date}', formatBookingDate(selectedDateISO, endDateISO, lang))
           .replace('{s}', selectedTime)
           .replace('{e}', endTime ?? '')
           .replace('{dur}', dur(totalDuration)),
@@ -551,7 +625,7 @@ export default function BookScreen() {
           <View style={[styles.summary, { backgroundColor: `${c.primary}10`, borderColor: `${c.primary}30` }]}>
             <Text style={[styles.summaryTitle, { color: c.text }]}>{t('total')}</Text>
             <Text style={[styles.summaryRow, { color: c.textSecondary }]}>
-              📅 {dates[selectedDateIdx].day}, {dates[selectedDateIdx].date} {dates[selectedDateIdx].month}
+              📅 {formatBookingDate(selectedDateISO, endDateISO, lang)}
             </Text>
             <Text style={[styles.summaryRow, { color: c.textSecondary }]}>
               ⏰ {selectedTime} – {endTime} ({dur(totalDuration)})

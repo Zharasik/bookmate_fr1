@@ -19,6 +19,50 @@ function addMinutes(timeStr, mins) {
   return minToTime(timeToMin(timeStr) + mins);
 }
 
+function toDateStr(d) {
+  return d instanceof Date ? d.toISOString().slice(0, 10) : String(d).slice(0, 10);
+}
+
+function addDays(date, days) {
+  const d = new Date(`${toDateStr(date)}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function getEndDate(date, startTime, endTime) {
+  return timeToMin(endTime) <= timeToMin(startTime) ? addDays(date, 1) : toDateStr(date);
+}
+
+function withEndDate(booking) {
+  const endTime = booking.end_time || addMinutes(booking.time, 60);
+  return {
+    ...booking,
+    end_time: endTime,
+    end_date: booking.end_date ? toDateStr(booking.end_date) : getEndDate(booking.date, booking.time, endTime),
+  };
+}
+
+// Compares two [start,end) time ranges that may belong to different dates and
+// may wrap past midnight (e.g. start=23:00, end=02:00). Plain string/TIME
+// comparison (`time < end AND end_time > start`) breaks for such overnight
+// ranges, so overlap is computed numerically in minutes-since-midnight,
+// shifting the second range by the day difference between the two dates.
+function rangesOverlap(aDate, aStart, aEnd, bDate, bStart, bEnd) {
+  const dayOffset = Math.round(
+    (new Date(`${toDateStr(bDate)}T00:00:00Z`).getTime() -
+      new Date(`${toDateStr(aDate)}T00:00:00Z`).getTime()) / 86400000,
+  );
+  let aStartMin = timeToMin(aStart);
+  let aEndMin = timeToMin(aEnd);
+  if (aEndMin <= aStartMin) aEndMin += 24 * 60;
+
+  let bStartMin = timeToMin(bStart) + dayOffset * 24 * 60;
+  let bEndMin = timeToMin(bEnd) + dayOffset * 24 * 60;
+  if (bEndMin <= bStartMin) bEndMin += 24 * 60;
+
+  return aStartMin < bEndMin && bStartMin < aEndMin;
+}
+
 router.get("/", auth, async (req, res) => {
   try {
     const { status } = req.query;
@@ -35,7 +79,7 @@ router.get("/", auth, async (req, res) => {
     }
     sql += ` ORDER BY CASE b.status WHEN 'in_progress' THEN 1 WHEN 'confirmed' THEN 2 WHEN 'pending' THEN 3 WHEN 'completed' THEN 4 WHEN 'cancelled' THEN 5 ELSE 6 END, b.date ASC, b.time ASC`;
     const { rows } = await pool.query(sql, params);
-    res.json(rows);
+    res.json(rows.map(withEndDate));
   } catch (err) {
     console.error("Get bookings error:", err);
     res.status(500).json({ error: "Ошибка сервера" });
@@ -53,24 +97,44 @@ router.get("/availability/:venueId", async (req, res) => {
       [req.params.venueId],
     );
 
+    // Bookings are stored under their start date. An overnight booking (e.g.
+    // 8 June 23:00 for 2h → ends 9 June 01:00) must show as "taken" on BOTH
+    // pages it actually occupies: the evening portion on its start date, and
+    // the early-morning portion (00:00–end) on the following date — not the
+    // whole range crammed onto the start date. So we also pull in the previous
+    // day's overnight bookings and split each range at the midnight boundary.
     const bookingsRes = await pool.query(
-      `SELECT slot_id, time, end_time FROM bookings
-       WHERE venue_id=$1 AND date=$2 AND status NOT IN ('cancelled')`,
+      `SELECT slot_id, date, time, end_time FROM bookings
+       WHERE venue_id=$1 AND status NOT IN ('cancelled')
+         AND date IN (($2::date - INTERVAL '1 day')::date, $2::date)`,
       [req.params.venueId, date],
     );
 
     const bookedBySlot = {};
+    const venueRanges = [];
     for (const b of bookingsRes.rows) {
-      if (!b.slot_id) continue;
-      if (!bookedBySlot[b.slot_id]) bookedBySlot[b.slot_id] = [];
       const endTime = b.end_time || addMinutes(b.time, 60);
-      bookedBySlot[b.slot_id].push({ start: b.time, end: endTime });
-    }
+      const wraps = timeToMin(endTime) <= timeToMin(b.time);
+      const isStartDate = toDateStr(b.date) === date;
 
-    const venueRanges = bookingsRes.rows.map((b) => ({
-      start: b.time,
-      end: b.end_time || addMinutes(b.time, 60),
-    }));
+      let range;
+      if (isStartDate) {
+        // Portion that falls on its own start date: full range, or up to
+        // midnight if it spills into the next day.
+        range = wraps ? { start: b.time, end: "24:00" } : { start: b.time, end: endTime };
+      } else if (wraps) {
+        // Spillover from the previous day's overnight booking: midnight to end.
+        range = { start: "00:00", end: endTime };
+      } else {
+        continue;
+      }
+
+      if (b.slot_id) {
+        if (!bookedBySlot[b.slot_id]) bookedBySlot[b.slot_id] = [];
+        bookedBySlot[b.slot_id].push(range);
+      }
+      venueRanges.push(range);
+    }
 
     const result = {
       slots: slotsRes.rows.map((slot) => ({
@@ -104,35 +168,43 @@ router.post("/", auth, async (req, res) => {
       if (slotDur.rows[0]) bookingDuration = slotDur.rows[0].duration || 60;
     }
     const endTime = addMinutes(time, bookingDuration);
+    const endDate = getEndDate(date, time, endTime);
 
     await client.query("BEGIN");
     await client.query("SELECT id FROM venues WHERE id=$1 FOR UPDATE", [venue_id]);
 
-    const userConflict = await client.query(
-      `SELECT b.id, v.name AS venue_name FROM bookings b
+    // Overnight bookings (e.g. 23:00–02:00) store end_time < time, so plain
+    // `time < $end AND end_time > $start` comparisons miss real overlaps.
+    // Pull candidates from the surrounding dates and compare numerically instead.
+    const userCandidates = await client.query(
+      `SELECT b.id, b.date, b.time, b.end_time, v.name AS venue_name FROM bookings b
        JOIN venues v ON v.id = b.venue_id
-       WHERE b.user_id=$1 AND b.date=$2 AND b.status NOT IN ('cancelled')
-         AND b.time < $4 AND b.end_time > $3
-       LIMIT 1`,
-      [req.userId, date, time, endTime],
+       WHERE b.user_id=$1 AND b.status NOT IN ('cancelled')
+         AND b.date BETWEEN $2::date - INTERVAL '1 day' AND $2::date + INTERVAL '1 day'`,
+      [req.userId, date],
     );
-    if (userConflict.rows.length > 0) {
+    const userConflictRow = userCandidates.rows.find((b) =>
+      rangesOverlap(date, time, endTime, b.date, b.time, b.end_time),
+    );
+    if (userConflictRow) {
       await client.query("ROLLBACK");
       return res.status(409).json({
-        error: `У вас уже есть бронь на это время в "${userConflict.rows[0].venue_name}". Один человек не может находиться в двух местах одновременно.`,
+        error: `У вас уже есть бронь на это время в "${userConflictRow.venue_name}". Один человек не может находиться в двух местах одновременно.`,
         conflict: "user_time",
       });
     }
 
     if (slot_id) {
-      const slotConflict = await client.query(
-        `SELECT id FROM bookings
-         WHERE slot_id=$1 AND date=$2 AND status NOT IN ('cancelled')
-           AND time < $4 AND end_time > $3
-         LIMIT 1`,
-        [slot_id, date, time, endTime],
+      const slotCandidates = await client.query(
+        `SELECT id, date, time, end_time FROM bookings
+         WHERE slot_id=$1 AND status NOT IN ('cancelled')
+           AND date BETWEEN $2::date - INTERVAL '1 day' AND $2::date + INTERVAL '1 day'`,
+        [slot_id, date],
       );
-      if (slotConflict.rows.length > 0) {
+      const slotConflictRow = slotCandidates.rows.find((b) =>
+        rangesOverlap(date, time, endTime, b.date, b.time, b.end_time),
+      );
+      if (slotConflictRow) {
         await client.query("ROLLBACK");
         return res.status(409).json({
           error: "Это место уже занято на выбранное время. Выберите другой слот или время.",
@@ -170,8 +242,8 @@ router.post("/", auth, async (req, res) => {
     }
 
     const { rows } = await client.query(
-      `INSERT INTO bookings (user_id,venue_id,slot_id,service_id,date,time,end_time,guests,total_price,status,notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending',$10) RETURNING *`,
+      `INSERT INTO bookings (user_id,venue_id,slot_id,service_id,date,time,end_date,end_time,guests,total_price,status,notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending',$11) RETURNING *`,
       [
         req.userId,
         venue_id,
@@ -179,6 +251,7 @@ router.post("/", auth, async (req, res) => {
         service_id || null,
         date,
         time,
+        endDate,
         endTime,
         guests || 1,
         totalPrice,
@@ -199,7 +272,7 @@ router.post("/", auth, async (req, res) => {
       )
       .catch(console.error);
 
-    res.status(201).json(rows[0]);
+    res.status(201).json(withEndDate(rows[0]));
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
     console.error("Create booking error:", err);
@@ -247,7 +320,7 @@ router.patch("/:id/cancel", auth, async (req, res) => {
       )
       .catch(console.error);
 
-    res.json(rows[0]);
+    res.json(withEndDate(rows[0]));
   } catch (err) {
     console.error("Cancel booking error:", err);
     res.status(500).json({ error: "Ошибка сервера" });
