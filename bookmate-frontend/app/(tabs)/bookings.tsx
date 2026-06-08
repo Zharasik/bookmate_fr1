@@ -184,6 +184,11 @@ export default function BookingsScreen() {
           {b.slot_name && (
             <Text style={[styles.slot, { color: c.primary }]}>📍 {b.slot_name}</Text>
           )}
+          {b.service_names?.length > 0 && (
+            <Text style={[styles.slot, { color: c.textSecondary }]} numberOfLines={1}>
+              🔧 {b.service_names.join(', ')}
+            </Text>
+          )}
           <View style={styles.metaRow}>
             <MapPin size={13} color={c.textMuted} />
             <Text style={[styles.metaText, { color: c.textSecondary }]} numberOfLines={1}>

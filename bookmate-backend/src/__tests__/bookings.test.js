@@ -170,6 +170,7 @@ describe('POST /api/bookings', () => {
       'venue-1',
       null,
       null,
+      [],
       '2026-07-25',
       '23:00',
       '2026-07-26',

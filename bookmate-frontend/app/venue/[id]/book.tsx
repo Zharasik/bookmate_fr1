@@ -184,7 +184,7 @@ export default function BookScreen() {
   const [loadingAvail, setLoadingAvail] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [services, setServices] = useState<any[]>([]);
-  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
   const [selectedDateIdx, setSelectedDateIdx] = useState(0);
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
@@ -229,6 +229,16 @@ export default function BookScreen() {
     if (selectedSlotId === slotId) return;
     setSelectedSlotId(slotId); setSelectedTime(null); setUnits(1);
   };
+
+  const toggleService = (serviceId: string) => {
+    setSelectedServiceIds((ids) =>
+      ids.includes(serviceId) ? ids.filter((sid) => sid !== serviceId) : [...ids, serviceId],
+    );
+  };
+
+  const selectedServices = services.filter((s) => selectedServiceIds.includes(s.id));
+  const servicesPrice = selectedServices.reduce((sum, s) => sum + (s.price || 0), 0);
+  const servicesDuration = selectedServices.reduce((sum, s) => sum + (s.duration || 0), 0);
 
   const selectedSlot = slotData.find((s) => s.id === selectedSlotId) ?? null;
   const slotDuration = selectedSlot?.duration ?? 60;
@@ -319,7 +329,7 @@ export default function BookScreen() {
       await api.createBooking({
         venue_id: venue.id,
         slot_id: selectedSlotId || undefined,
-        service_id: selectedServiceId || undefined,
+        service_ids: selectedServiceIds.length > 0 ? selectedServiceIds : undefined,
         date: dates[selectedDateIdx].iso,
         time: selectedTime,
         duration: totalDuration,
@@ -491,11 +501,11 @@ export default function BookScreen() {
             <Text style={[styles.hint, { color: c.textMuted }]}>{t('selectServiceHint')}</Text>
             <View style={styles.slotGrid}>
               {services.map((svc) => {
-                const sel = selectedServiceId === svc.id;
+                const sel = selectedServiceIds.includes(svc.id);
                 return (
                   <Pressable
                     key={svc.id}
-                    onPress={() => setSelectedServiceId(sel ? null : svc.id)}
+                    onPress={() => toggleService(svc.id)}
                     style={[styles.slotCard, {
                       backgroundColor: sel ? c.primary : c.card,
                       borderColor: sel ? c.primary : c.border,
@@ -638,14 +648,13 @@ export default function BookScreen() {
                   : ` · ${t('free')}`}
               </Text>
             )}
-            {selectedServiceId && (() => {
-              const svc = services.find(s => s.id === selectedServiceId);
-              return svc ? (
-                <Text style={[styles.summaryRow, { color: c.textSecondary }]}>
-                  🔧 {svc.name}{svc.price > 0 ? ` · ${svc.price.toLocaleString()} ₸` : ''}
-                </Text>
-              ) : null;
-            })()}
+            {selectedServices.length > 0 && (
+              <Text style={[styles.summaryRow, { color: c.textSecondary }]}>
+                🔧 {selectedServices.map((s) => s.name).join(', ')}
+                {servicesPrice > 0 ? ` · ${servicesPrice.toLocaleString()} ₸` : ''}
+                {servicesDuration > 0 ? ` · +${dur(servicesDuration)}` : ''}
+              </Text>
+            )}
             <Text style={[styles.summaryRow, { color: c.textSecondary }]}>
               👥 {guestLabel()}
             </Text>

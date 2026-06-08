@@ -67,10 +67,15 @@ router.get("/", auth, async (req, res) => {
   try {
     const { status } = req.query;
     let sql = `SELECT b.*, v.name AS venue_name, v.image_url AS venue_image,
-                v.location AS venue_location, v.category AS venue_category, vs.name AS slot_name, vs.duration AS slot_duration
+                v.location AS venue_location, v.category AS venue_category, vs.name AS slot_name, vs.duration AS slot_duration,
+                COALESCE(svc.names, '{}') AS service_names
                FROM bookings b
                JOIN venues v ON v.id = b.venue_id
                LEFT JOIN venue_slots vs ON vs.id = b.slot_id
+               LEFT JOIN LATERAL (
+                 SELECT array_agg(s.name ORDER BY s.name) AS names
+                 FROM services s WHERE s.id = ANY(b.service_ids)
+               ) svc ON true
                WHERE b.user_id = $1`;
     const params = [req.userId];
     if (status) {
@@ -154,7 +159,12 @@ router.get("/availability/:venueId", async (req, res) => {
 router.post("/", auth, async (req, res) => {
   const client = await pool.connect();
   try {
-    const { venue_id, slot_id, service_id, date, time, duration, guests, notes } = req.body;
+    const { venue_id, slot_id, service_id, service_ids, date, time, duration, guests, notes } = req.body;
+    // Accept either the legacy single `service_id` or the new `service_ids` array
+    // (multiple add-on services can be picked at once; their price/duration sum up).
+    const serviceIds = Array.from(
+      new Set([...(Array.isArray(service_ids) ? service_ids : []), ...(service_id ? [service_id] : [])]),
+    );
     if (!venue_id || !date || !time)
       return res.status(400).json({ error: "venue_id, date и time обязательны" });
 
@@ -229,26 +239,34 @@ router.post("/", auth, async (req, res) => {
       totalPrice = slotPrice * Math.max(1, units);
     }
 
-    if (service_id && totalPrice === 0) {
-      const svcRow = await client.query(
-        "SELECT price, duration FROM services WHERE id=$1 AND is_active=true",
-        [service_id],
+    // Add-on services stack: each selected service adds its own price (and,
+    // when there's no slot to derive the price from, its duration-scaled price)
+    // on top of the slot total — so picking several sums them all up.
+    if (serviceIds.length > 0) {
+      const svcRes = await client.query(
+        "SELECT id, price, duration FROM services WHERE id = ANY($1::uuid[]) AND is_active=true",
+        [serviceIds],
       );
-      if (svcRow.rows[0]) {
-        const svcDur = svcRow.rows[0].duration || 60;
-        const units = Math.max(1, Math.round(bookingDuration / svcDur));
-        totalPrice = (svcRow.rows[0].price || 0) * units;
+      for (const svc of svcRes.rows) {
+        if (totalPrice === 0) {
+          const svcDur = svc.duration || 60;
+          const units = Math.max(1, Math.round(bookingDuration / svcDur));
+          totalPrice += (svc.price || 0) * units;
+        } else {
+          totalPrice += svc.price || 0;
+        }
       }
     }
 
     const { rows } = await client.query(
-      `INSERT INTO bookings (user_id,venue_id,slot_id,service_id,date,time,end_date,end_time,guests,total_price,status,notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending',$11) RETURNING *`,
+      `INSERT INTO bookings (user_id,venue_id,slot_id,service_id,service_ids,date,time,end_date,end_time,guests,total_price,status,notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pending',$12) RETURNING *`,
       [
         req.userId,
         venue_id,
         slot_id || null,
-        service_id || null,
+        serviceIds[0] || null,
+        serviceIds,
         date,
         time,
         endDate,

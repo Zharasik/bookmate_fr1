@@ -110,7 +110,7 @@ export const api = {
     const qs = status ? `?status=${status}` : '';
     return request<Booking[]>(`/api/bookings${qs}`);
   },
-  createBooking: (data: { venue_id: string; slot_id?: string; date: string; time: string; duration: number; guests: number; notes?: string }) =>
+  createBooking: (data: { venue_id: string; slot_id?: string; service_ids?: string[]; date: string; time: string; duration: number; guests: number; notes?: string }) =>
     request<Booking>('/api/bookings', { method: 'POST', body: JSON.stringify(data) }),
   cancelBooking: (id: string) => request<Booking>(`/api/bookings/${id}/cancel`, { method: 'PATCH' }),
   clearBookingHistory: () => request<{ deleted: number }>('/api/bookings/history', { method: 'DELETE' }),

@@ -58,6 +58,7 @@ export interface Booking {
   guests: number;
   total_price: number;
   status: string;
+  service_names?: string[];
   notes?: string | null;
   client_rating_given?: number | null;
 }

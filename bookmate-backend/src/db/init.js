@@ -265,6 +265,19 @@ DO $$ BEGIN
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
+-- Allow selecting several add-on services per booking (price/duration are summed)
+DO $$ BEGIN
+  ALTER TABLE bookings ADD COLUMN IF NOT EXISTS service_ids UUID[] DEFAULT '{}';
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+-- Backfill service_ids from the legacy single service_id column
+DO $$ BEGIN
+  UPDATE bookings SET service_ids = ARRAY[service_id]
+  WHERE service_id IS NOT NULL AND (service_ids IS NULL OR service_ids = '{}');
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
 -- Reviews enhancements: photo, reasons array, unique per user+venue
 DO $$ BEGIN
   ALTER TABLE reviews ADD COLUMN IF NOT EXISTS photo_url TEXT;

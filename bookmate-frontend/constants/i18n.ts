@@ -120,7 +120,7 @@ const translations: Record<Lang, Record<string, string>> = {
     no: 'Нет',
     selectPlace: 'Выберите место',
     selectPlaceHint: 'Зелёный — есть свободное время · Красный — всё занято на этот день',
-    selectServiceHint: 'Необязательно — выберите услугу, которая вас интересует',
+    selectServiceHint: 'Необязательно — можно выбрать сразу несколько услуг, их цена и время суммируются',
     noTimeSlots: 'Нет доступных слотов для этого дня.',
     duration: 'Продолжительность',
     total: 'Итого',
@@ -170,6 +170,16 @@ const translations: Record<Lang, Record<string, string>> = {
     // Map
     discoverVenues: 'Заведения рядом',
     venueNotFound: 'Заведение не найдено',
+    nearMe: 'Рядом со мной',
+    myLocation: 'Моё местоположение',
+    locationDenied: 'Доступ к геолокации не предоставлен',
+    closedNow: 'Закрыто',
+    mapFilters: 'Фильтры',
+    ratingFrom: 'Рейтинг от {r}',
+    clusterCount: '{n} мест',
+    openVenue: 'Открыть',
+    distanceKm: '{d} км',
+    distanceM: '{d} м',
 
     // General
     loading: 'Загрузка...',
@@ -442,6 +452,16 @@ const translations: Record<Lang, Record<string, string>> = {
     // Map
     discoverVenues: 'Жақын орындар',
     venueNotFound: 'Орын табылмады',
+    nearMe: 'Жанымда',
+    myLocation: 'Менің орналасуым',
+    locationDenied: 'Геолокацияға қол жеткізу берілмеген',
+    closedNow: 'Жабық',
+    mapFilters: 'Сүзгілер',
+    ratingFrom: 'Рейтинг {r}-ден',
+    clusterCount: '{n} орын',
+    openVenue: 'Ашу',
+    distanceKm: '{d} км',
+    distanceM: '{d} м',
 
     // General
     loading: 'Жүктелуде...',
@@ -452,7 +472,7 @@ const translations: Record<Lang, Record<string, string>> = {
 
     selectPlace: 'Орын таңдаңыз',
     selectPlaceHint: 'Жасыл — бос уақыт бар · Қызыл — бұл күні барлығы алынды',
-    selectServiceHint: 'Міндетті емес — қызығатын қызметті таңдаңыз',
+    selectServiceHint: 'Міндетті емес — бірнеше қызметті бірден таңдауға болады, бағасы мен уақыты қосылады',
     noTimeSlots: 'Бұл күні қолжетімді слоттар жоқ.',
     duration: 'Ұзақтығы',
     total: 'Барлығы',
