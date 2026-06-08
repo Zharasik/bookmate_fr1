@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Locate, Star } from 'lucide-react-native';
 import { useTheme, useT } from '../../hooks/useHelpers';
+import { useStore } from '../../hooks/useStore';
 import { api } from '../../services/api';
 import { haversineKm, isOpenNow, useUserLocation } from '../../hooks/useGeo';
 
@@ -23,6 +25,8 @@ const RATING_OPTIONS = [4, 4.5];
 export default function MapScreen() {
   const c = useTheme();
   const t = useT();
+  const insets = useSafeAreaInsets();
+  const mapFocus = useStore((s) => s.mapFocus);
   const { location, status: locationStatus, requestLocation } = useUserLocation();
 
   const [venues, setVenues] = useState<VenueMapItem[]>([]);
@@ -95,6 +99,9 @@ export default function MapScreen() {
     const venueData = JSON.stringify(filteredVenues);
     const userLoc = location ? JSON.stringify(location) : 'null';
     const lbl = JSON.stringify(labels);
+    const focus = mapFocus
+      ? JSON.stringify({ lat: mapFocus.latitude, lng: mapFocus.longitude, id: mapFocus.venueId })
+      : 'null';
     return `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
@@ -115,11 +122,13 @@ html,body,#map{height:100%;margin:0;padding:0;font-family:-apple-system,Segoe UI
 const venues=${venueData};
 const userLoc=${userLoc};
 const lbl=${lbl};
+const focus=${focus};
 const map=L.map('map').setView([43.238949,76.889709],12);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 const icon=L.divIcon({className:'',html:'<div class="venue-dot"></div>',iconSize:[18,18],iconAnchor:[9,9]});
 const cluster=L.markerClusterGroup({maxClusterRadius:50});
 const bounds=[];
+const markerById={};
 function fmtDist(km){
   if(km<1) return lbl.m.replace('{d}', String(Math.round(km*1000)));
   return lbl.km.replace('{d}', km<10 ? km.toFixed(1) : String(Math.round(km)));
@@ -139,6 +148,7 @@ venues.forEach(v=>{
     '</div>'
   );
   cluster.addLayer(m);
+  markerById[v.id]=m;
   bounds.push([v.latitude,v.longitude]);
 });
 map.addLayer(cluster);
@@ -147,9 +157,15 @@ if(userLoc){
   L.marker([userLoc.latitude,userLoc.longitude],{icon:uIcon,zIndexOffset:1000}).addTo(map);
   bounds.push([userLoc.latitude,userLoc.longitude]);
 }
-if(bounds.length>0)map.fitBounds(bounds,{padding:[40,40]});
+if(focus){
+  map.setView([focus.lat,focus.lng],15);
+  const fm=focus.id?markerById[focus.id]:null;
+  if(fm) cluster.zoomToShowLayer(fm,()=>fm.openPopup());
+}else if(bounds.length>0){
+  map.fitBounds(bounds,{padding:[40,40]});
+}
 </script></body></html>`;
-  }, [filteredVenues, location, labels]);
+  }, [filteredVenues, location, labels, mapFocus]);
 
   if (loading) return <View style={[styles.centered, { backgroundColor: c.bg }]}><ActivityIndicator size="large" color={c.primary} /></View>;
   if (error) return (
@@ -164,7 +180,7 @@ if(bounds.length>0)map.fitBounds(bounds,{padding:[40,40]});
   return (
     <View style={styles.container}>
       <iframe srcDoc={srcDoc} style={{ border: 0, width: '100%', height: '100%' } as any} title="BookMate Map" />
-      <View style={styles.filterOverlay} pointerEvents="box-none">
+      <View style={[styles.filterOverlay, { top: insets.top + 12 }]} pointerEvents="box-none">
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
           <Pressable
             style={[styles.chip, { backgroundColor: nearbyOnly ? c.primary : c.card, borderColor: nearbyOnly ? c.primary : c.border }]}
@@ -217,7 +233,7 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 15, fontWeight: '600' },
   retryBtn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
 
-  filterOverlay: { position: 'absolute', top: 12, left: 0, right: 0 },
+  filterOverlay: { position: 'absolute', left: 0, right: 0 },
   filterRow: { paddingHorizontal: 12, gap: 8, alignItems: 'center' },
   chip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, marginRight: 8 },
   chipText: { fontSize: 12, fontWeight: '600' },

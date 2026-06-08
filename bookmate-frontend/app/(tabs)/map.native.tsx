@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import MapView, { Marker, PROVIDER_DEFAULT, Region, UrlTile } from 'react-native-maps';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import MapView, { MapPressEvent, Marker, PROVIDER_DEFAULT, Region, UrlTile } from 'react-native-maps';
 import { useRouter } from 'expo-router';
 import { Locate, MapPin, Star, X } from 'lucide-react-native';
 import { api } from '../../services/api';
 import { useTheme, useT } from '../../hooks/useHelpers';
+import { useStore } from '../../hooks/useStore';
 import {
   clusterPoints, formatDistance, haversineKm, isOpenNow, useUserLocation,
 } from '../../hooks/useGeo';
@@ -30,6 +32,9 @@ export default function MapScreen() {
   const c = useTheme();
   const t = useT();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const mapFocus = useStore((s) => s.mapFocus);
+  const setMapFocus = useStore((s) => s.setMapFocus);
   const mapRef = useRef<MapView>(null);
   const { location, status: locationStatus, requestLocation } = useUserLocation();
 
@@ -80,6 +85,16 @@ export default function MapScreen() {
   useEffect(() => {
     loadVenues().catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!mapFocus || venues.length === 0) return;
+    mapRef.current?.animateToRegion({
+      latitude: mapFocus.latitude, longitude: mapFocus.longitude, latitudeDelta: 0.05, longitudeDelta: 0.05,
+    }, 400);
+    const venue = venues.find((v) => v.id === mapFocus.venueId) || null;
+    if (venue) setSelectedVenue(venue);
+    setMapFocus(null);
+  }, [mapFocus, venues, setMapFocus]);
 
   const handleNearMe = async () => {
     if (nearbyOnly) {
@@ -158,7 +173,10 @@ export default function MapScreen() {
         showsUserLocation={locationStatus === 'granted'}
         showsMyLocationButton={false}
         onRegionChangeComplete={setRegion}
-        onPress={() => setSelectedVenue(null)}
+        onPress={(e: MapPressEvent) => {
+          if (e.nativeEvent.action === 'marker-press') return;
+          setSelectedVenue(null);
+        }}
       >
         <UrlTile
           urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -171,7 +189,7 @@ export default function MapScreen() {
             <Marker
               key={cluster.key}
               coordinate={{ latitude: cluster.latitude, longitude: cluster.longitude }}
-              onPress={() => onClusterPress(cluster)}
+              onPress={(e) => { e.stopPropagation(); onClusterPress(cluster); }}
               tracksViewChanges={false}
             >
               <View style={[styles.clusterBubble, { backgroundColor: c.primary, borderColor: c.card }]}>
@@ -184,14 +202,14 @@ export default function MapScreen() {
               coordinate={{ latitude: cluster.items[0].latitude, longitude: cluster.items[0].longitude }}
               title={cluster.items[0].name}
               description={cluster.items[0].category || 'Venue'}
-              onPress={() => setSelectedVenue(cluster.items[0])}
+              onPress={(e) => { e.stopPropagation(); setSelectedVenue(cluster.items[0]); }}
               pinColor={c.primary}
             />
           )
         ))}
       </MapView>
 
-      <View style={styles.filterOverlay} pointerEvents="box-none">
+      <View style={[styles.filterOverlay, { top: insets.top + 12 }]} pointerEvents="box-none">
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
           <Pressable
             style={[styles.chip, { backgroundColor: nearbyOnly ? c.primary : c.card, borderColor: nearbyOnly ? c.primary : c.border }]}
@@ -275,7 +293,7 @@ const styles = StyleSheet.create({
   retryButton: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
   retryText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
-  filterOverlay: { position: 'absolute', top: 12, left: 0, right: 0 },
+  filterOverlay: { position: 'absolute', left: 0, right: 0 },
   filterRow: { paddingHorizontal: 12, gap: 8, alignItems: 'center' },
   chip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, marginRight: 8 },
   chipText: { fontSize: 12, fontWeight: '600' },

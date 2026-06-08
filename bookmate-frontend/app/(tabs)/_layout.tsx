@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { View, Pressable, StyleSheet, ScrollView, Dimensions } from 'react-native';
 import ExploreScreen from './index';
 import MapScreen from './map';
@@ -6,9 +6,11 @@ import BookingsScreen from './bookings';
 import NotificationsScreen from './notifications';
 import ProfileScreen from './profile';
 import { useTheme } from '../../hooks/useHelpers';
+import { useStore } from '../../hooks/useStore';
 import { Home, Map, CalendarCheck, Bell, User } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
+const MAP_TAB_INDEX = 1;
 
 const TABS = [
   { key: 'explore',       Icon: Home,          Screen: ExploreScreen },
@@ -22,11 +24,17 @@ export default function TabLayout() {
   const c = useTheme();
   const scrollRef = useRef<ScrollView>(null);
   const [activeTab, setActiveTab] = useState(0);
+  const mapFocus = useStore((s) => s.mapFocus);
 
   const goTo = (index: number) => {
     scrollRef.current?.scrollTo({ x: index * width, animated: true });
     setActiveTab(index);
   };
+
+  // "Show on map" from a venue page sets mapFocus — jump to the map tab to reveal it.
+  useEffect(() => {
+    if (mapFocus) goTo(MAP_TAB_INDEX);
+  }, [mapFocus]);
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>

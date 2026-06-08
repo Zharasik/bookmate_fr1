@@ -14,6 +14,7 @@ export default function BusinessLayout() {
       <Stack.Screen name="bookings" />
       <Stack.Screen name="slots" />
       <Stack.Screen name="stats" />
+      <Stack.Screen name="location" />
     </Stack>
   );
 }

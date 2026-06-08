@@ -180,6 +180,10 @@ const translations: Record<Lang, Record<string, string>> = {
     openVenue: 'Открыть',
     distanceKm: '{d} км',
     distanceM: '{d} м',
+    showOnMap: 'Показать на карте',
+    setLocationOnMap: 'Указать на карте',
+    locationSaved: 'Локация сохранена',
+    tapMapToPlacePin: 'Нажмите на карту, чтобы установить точку заведения',
 
     // General
     loading: 'Загрузка...',
@@ -462,6 +466,10 @@ const translations: Record<Lang, Record<string, string>> = {
     openVenue: 'Ашу',
     distanceKm: '{d} км',
     distanceM: '{d} м',
+    showOnMap: 'Картада көрсету',
+    setLocationOnMap: 'Картадан белгілеу',
+    locationSaved: 'Орналасу сақталды',
+    tapMapToPlacePin: 'Орынды белгілеу үшін картаға басыңыз',
 
     // General
     loading: 'Жүктелуде...',
