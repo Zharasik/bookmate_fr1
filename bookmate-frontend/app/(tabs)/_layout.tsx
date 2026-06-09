@@ -53,7 +53,7 @@ export default function TabLayout() {
     const index = Math.round(e.nativeEvent.contentOffset.x / width);
     setActiveTab(index);
   }}
-  style={{ flex: 1 }}
+  style={{ flex: 3 }}
 >
         {TABS.map(({ key, Screen }) => (
           <View key={key} style={{ width, flex: 1 }}>
@@ -65,7 +65,7 @@ export default function TabLayout() {
       <View style={[styles.tabBar, { backgroundColor: c.card, borderTopColor: c.border }]}>
         {TABS.map(({ key, Icon }, i) => (
           <Pressable key={key} style={styles.tabItem} onPress={() => goTo(i)}>
-            <Icon size={24} color={activeTab === i ? c.primary : c.textMuted} />
+            <Icon size={30} color={activeTab === i ? c.primary : c.textMuted} />
           </Pressable>
         ))}
       </View>
@@ -74,6 +74,6 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  tabBar: { flexDirection: 'row', borderTopWidth: 1, paddingBottom: 28, paddingTop: 10 },
+  tabBar: { flexDirection: 'row', borderTopWidth: 1, paddingBottom: 45, paddingTop: 20 , borderRadius: 20},
   tabItem: { flex: 1, alignItems: 'center' },
 });

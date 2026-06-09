@@ -8,8 +8,14 @@ import { useStore } from '../../hooks/useStore';
 import { useTheme, useT } from '../../hooks/useHelpers';
 import { api } from '../../services/api';
 import { useWindowDimensions } from 'react-native';
+import { Moon, Sun, Globe } from 'lucide-react-native';
+import { Alert } from 'react-native';
 
 export default function LoginScreen() {
+  const isDark = useStore(s => s.dark);
+  const toggleTheme = useStore(s => s.toggleTheme);
+  const lang = useStore(s => s.lang);
+  const setLang = useStore(s => s.setLang);
   const router = useRouter();
   const c = useTheme(); const t = useT();
   const setAuth = useStore((s) => s.setAuth);
@@ -29,15 +35,18 @@ export default function LoginScreen() {
       setAuth(token, user);
       router.replace('/(tabs)');
     } catch (e: any) {
-      if (e.message?.includes('не подтверждён')) {
-        router.push({ pathname: '/auth/verify', params: { userId: '', email: email.trim() } } as any);
-      } else { setError(e.message || t('loginError')); }
-    } finally { setLoading(false); }
+  if (e.message?.includes('не подтверждён')) {
+    router.push({ pathname: '/auth/verify', params: { userId: '', email: email.trim() } } as any);
+  } else if (e.message?.includes('Неверный email или пароль')) {
+    Alert.alert(t('error'), t('wrongCredentials'));
+  } else {
+    Alert.alert(t('error'), e.message || t('loginError'));
+  }
+}
   };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]}>
-      <LinearGradient colors={['#EFF6FF', '#DBEAFE', '#F9FAFB']} style={StyleSheet.absoluteFillObject} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.inner}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={styles.logoWrap}>
@@ -45,7 +54,7 @@ export default function LoginScreen() {
               <Text style={{ fontSize: 36 }}>📅</Text>
             </LinearGradient>
             <Text style={[styles.logoText, { color: c.primary }]}>BookMate</Text>
-            <Text style={[styles.subtitle, { color: c.textSecondary }]}>Бронируй. Приходи. Наслаждайся.</Text>
+            <Text style={[styles.subtitle, { color: c.textSecondary }]}>{t('appSubtitle')}</Text>
           </View>
 
           <View style={[styles.card, { backgroundColor: c.card }]}>
@@ -61,7 +70,7 @@ export default function LoginScreen() {
               <Pressable onPress={() => setShowPass(!showPass)}>{showPass ? <EyeOff size={18} color={c.textMuted} /> : <Eye size={18} color={c.textMuted} />}</Pressable>
             </View>
             <Pressable onPress={() => router.push('/auth/forgot-password' as any)} style={styles.forgotWrap}>
-              <Text style={[styles.forgotText, { color: c.primary }]}>Забыли пароль?</Text>
+              <Text style={[styles.forgotText, { color: c.primary }]}>{t('forgotPassword')}</Text>
             </Pressable>
 
             <Pressable onPress={handleLogin} disabled={loading} style={{ marginTop: 4 }}>
@@ -77,10 +86,34 @@ export default function LoginScreen() {
           </View>
 
           <View style={[styles.demoBox, { backgroundColor: `${c.primary}12`, borderColor: `${c.primary}30` }]}>
-            <Text style={[styles.demoTitle, { color: c.primary }]}>Demo аккаунты</Text>
+            <Text style={[styles.demoTitle, { color: c.primary }]}>{t('demoAccounts')}</Text>
             <Text style={[styles.demoText, { color: c.textSecondary }]}>Клиент: user@demo.kz / demo123</Text>
             <Text style={[styles.demoText, { color: c.textSecondary }]}>Бизнес: owner@bookmate.kz / Business123!</Text>
           </View>
+
+          <View style={styles.settingsRow}>
+  <Pressable
+    style={[styles.settingsBtn, { backgroundColor: c.card, borderColor: c.border }]}
+    onPress={toggleTheme}
+  >
+    {isDark
+      ? <Sun size={16} color={c.primary} />
+      : <Moon size={16} color={c.primary} />}
+    <Text style={[styles.settingsBtnText, { color: c.text }]}>
+      {isDark ? t('lightTheme') : t('darkTheme')}
+    </Text>
+  </Pressable>
+
+  <Pressable
+    style={[styles.settingsBtn, { backgroundColor: c.card, borderColor: c.border }]}
+    onPress={() => setLang(lang === 'ru' ? 'kk' : 'ru')}
+  >
+    <Globe size={16} color={c.primary} />
+    <Text style={[styles.settingsBtnText, { color: c.text }]}>
+      {lang === 'ru' ? 'Қазақша' : 'Русский'}
+    </Text>
+  </Pressable>
+</View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -110,4 +143,7 @@ const styles = StyleSheet.create({
   demoBox: { marginTop: 24, borderRadius: 14, padding: 16, borderWidth: 1 },
   demoTitle: { fontSize: 13, fontWeight: '700', marginBottom: 6 },
   demoText: { fontSize: 12, lineHeight: 20 },
+  settingsRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
+settingsBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderRadius: 12, paddingVertical: 10 },
+settingsBtnText: { fontSize: 13, fontWeight: '600' },
 });

@@ -91,7 +91,6 @@ export default function RegisterScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: c.bg }]}>
-      <LinearGradient colors={['#EFF6FF', '#DBEAFE', '#F9FAFB']} style={StyleSheet.absoluteFillObject} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.inner}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={styles.logoWrap}>
@@ -204,7 +203,7 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 20, fontWeight: '700', marginBottom: 16 },
   errorBox: { backgroundColor: '#FEE2E2', borderRadius: 10, padding: 12, marginBottom: 14 },
   errorText: { color: '#991B1B', fontSize: 14, textAlign: 'center' },
-  inputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, height: 52, gap: 10 },
+  inputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, height: 52, gap: 10, marginBottom: 12 },
   input: { flex: 1, fontSize: 15 },
   fieldErr: { color: '#EF4444', fontSize: 12, marginTop: 4, marginBottom: 8, marginLeft: 4 },
   passHint: { color: '#6B7280', fontSize: 11, marginTop: 4, marginBottom: 8, marginLeft: 4 },

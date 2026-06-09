@@ -265,7 +265,7 @@ export default function BookScreen() {
   function isTimeTaken(startTime: string): boolean {
     const ranges = selectedSlot ? (selectedSlot.booked_ranges ?? []) : venueRanges;
     const startAdj = toAdj(startTime);
-    const checkEnd = startAdj + Math.max(slotDuration, totalDuration);
+    const checkEnd = startAdj + slotDuration;
     return hasOverlap(startAdj, checkEnd, ranges, openMin, isOvernight);
   }
 
@@ -273,9 +273,43 @@ export default function BookScreen() {
     return (toAdj(startTime) + slotDuration) > adjustedCloseMin;
   }
 
-  const selectedTimeOverflows = selectedTime
-    ? (toAdj(selectedTime) + totalDuration) > adjustedCloseMin
-    : false;
+  
+
+const maxUnitsByBlocker = useMemo(() => {
+  if (!selectedTime) return maxUnits;
+  const ranges = selectedSlot
+    ? (selectedSlot.booked_ranges ?? [])
+    : venueRanges; // ← было только selectedSlot.booked_ranges
+  if (!selectedSlot && venueRanges.length === 0) return maxUnits;
+  const startAdj = toAdj(selectedTime);
+  let max = 1;
+  while (max < maxUnits) {
+    const nextEnd = startAdj + slotDuration * (max + 1);
+    if (nextEnd > adjustedCloseMin) break;
+    if (hasOverlap(
+      startAdj + slotDuration * max,
+      startAdj + slotDuration * (max + 1),
+      ranges,
+      openMin, isOvernight,
+    )) break;
+    max++;
+  }
+  return max;
+}, [selectedTime, selectedSlotId, slotData, venueRanges, selectedDateIdx]);
+
+useEffect(() => {
+
+  if (units > maxUnitsByBlocker) setUnits(maxUnitsByBlocker);
+
+}, [units, maxUnitsByBlocker]); // ← добавить maxUnitsByBlocker
+
+
+
+
+
+const selectedTimeOverflows = selectedTime
+  ? (toAdj(selectedTime) + totalDuration) > adjustedCloseMin || units > maxUnitsByBlocker
+  : false;
 
   function userConflicts(): any[] {
     if (!selectedTime || !endTime) return [];
@@ -304,10 +338,7 @@ export default function BookScreen() {
   }, [selectedSlotId, units, selectedDateIdx, slotData]);
 
   useEffect(() => {
-    if (!selectedTime) return;
-    if (isTimeTaken(selectedTime) || isTimeUnavailableDueToUnits(selectedTime)) setSelectedTime(null);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [units]);
+    if (units > maxUnitsByBlocker) setUnits(maxUnitsByBlocker);}, [units]);
 
   const handleConfirm = async () => {
     if (!venue) return;
@@ -588,7 +619,8 @@ export default function BookScreen() {
                 <Text style={[styles.unitNum, { color: c.text }]}>{units}×</Text>
                 <Text style={[styles.unitLabel, { color: c.primary }]}>{dur(totalDuration)}</Text>
               </View>
-              <Pressable onPress={() => setUnits(Math.min(maxUnits, units + 1))} style={[styles.unitBtn, { backgroundColor: c.bg }]}>
+              <Pressable onPress={() => setUnits(Math.min(maxUnitsByBlocker, units + 1))}
+disabled={units >= maxUnitsByBlocker} style={[styles.unitBtn, { backgroundColor: c.bg }]}>
                 <Plus size={20} color={c.text} />
               </Pressable>
             </View>

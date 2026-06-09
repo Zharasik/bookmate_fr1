@@ -22,6 +22,7 @@ export interface MapFocus {
 }
 
 interface AppState {
+  darkMode: any;
   token: string | null;
   user: User | null;
   dark: boolean;
