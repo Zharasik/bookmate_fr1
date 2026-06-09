@@ -566,9 +566,30 @@ export default function BookScreen() {
                           Alert.alert(t('selectTime'), t('takenAlert')); return;
                         }
                         if (past || overflow) return;
-                        setSelectedTimes((prev) =>
-                          prev.includes(tm) ? prev.filter((t) => t !== tm) : [...prev, tm],
-                        );
+                        setSelectedTimes((prev) => {
+                          // Deselect if already selected
+                          if (prev.includes(tm)) {
+                            const next = prev.filter((x) => x !== tm);
+                            // After deselect, keep only contiguous range around remaining selection
+                            if (next.length === 0) return [];
+                            const adjSorted = [...next].sort((a, b) => toAdj(a) - toAdj(b));
+                            const minAdj = toAdj(adjSorted[0]);
+                            const maxAdj = toAdj(adjSorted[adjSorted.length - 1]);
+                            return timeGrid.filter((g) => {
+                              const a = toAdj(g);
+                              return a >= minAdj && a <= maxAdj;
+                            });
+                          }
+                          // Fill contiguous range from min to max including new slot
+                          const all = [...prev, tm];
+                          const adjSorted = [...all].sort((a, b) => toAdj(a) - toAdj(b));
+                          const minAdj = toAdj(adjSorted[0]);
+                          const maxAdj = toAdj(adjSorted[adjSorted.length - 1]);
+                          return timeGrid.filter((g) => {
+                            const a = toAdj(g);
+                            return a >= minAdj && a <= maxAdj;
+                          });
+                        });
                       }}
                     >
                       <Text style={[styles.timeText, { color: textColor }]}>{tm}</Text>
