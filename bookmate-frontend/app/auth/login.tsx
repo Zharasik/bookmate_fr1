@@ -10,6 +10,7 @@ import { api } from '../../services/api';
 import { useWindowDimensions } from 'react-native';
 import { Moon, Sun, Globe } from 'lucide-react-native';
 import { Alert } from 'react-native';
+import { Image } from 'react-native';
 
 export default function LoginScreen() {
   const isDark = useStore(s => s.dark);
@@ -26,6 +27,7 @@ export default function LoginScreen() {
   const [error, setError] = useState('');
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
+  const LOGO = require('../../assets/Adobe Express - file.png');
 
   const handleLogin = async () => {
     if (!email.trim() || !password) return;
@@ -50,12 +52,14 @@ export default function LoginScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.inner}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={styles.logoWrap}>
-            <LinearGradient colors={['#2563EB', '#3B82F6']} style={styles.logoCircle}>
-              <Text style={{ fontSize: 36 }}>📅</Text>
-            </LinearGradient>
-            <Text style={[styles.logoText, { color: c.primary }]}>BookMate</Text>
-            <Text style={[styles.subtitle, { color: c.textSecondary }]}>{t('appSubtitle')}</Text>
-          </View>
+  <Image
+    source={LOGO}
+    style={styles.logoImage}
+    resizeMode="contain"
+  />
+  <Text style={[styles.logoText, { color: c.primary }]}>BookMate</Text>
+  <Text style={[styles.subtitle, { color: c.textSecondary }]}>{t('appSubtitle')}</Text>
+</View>
 
           <View style={[styles.card, { backgroundColor: c.card }]}>
             <Text style={[styles.cardTitle, { color: c.text }]}>{t('login')}</Text>
@@ -125,8 +129,11 @@ const styles = StyleSheet.create({
   inner: { flex: 1 },
   scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 40 },
   logoWrap: { alignItems: 'center', marginBottom: 36 },
-  logoCircle: { width: 72, height: 72, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
-  logoText: { fontSize: 34, fontWeight: '800' },
+  logoImage: {
+  width: 200,
+  height: 200,
+},
+logoText: { fontSize: 34, fontWeight: '800' },
   subtitle: { fontSize: 15, marginTop: 6 },
   card: { borderRadius: 24, padding: 28, elevation: 5 },
   cardTitle: { fontSize: 22, fontWeight: '700', marginBottom: 20 },
