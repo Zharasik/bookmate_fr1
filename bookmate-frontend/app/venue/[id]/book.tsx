@@ -132,12 +132,12 @@ function generateTimeGrid(openTime: string, closeTime: string, durationMin: numb
     cur += durationMin;
   }
   if (overnight) {
-    // Hours that wrap past midnight (e.g. 00:00, 01:00) belong earlier in the
-    // calendar day than the venue's opening hour — show them first so the list
-    // reads in natural chronological order (00:00 → ... → 23:00).
+    // Show opening-hour slots first, then post-midnight slots — so the list
+    // reads in natural chronological order (18:00 → ... → 23:00 → 00:00 → 01:00).
+    // This way 00:00 visually appears AFTER 23:00, making it clear it's next day.
     const wrapped = result.filter((tm) => timeToMin(tm) < open);
     const sameDay = result.filter((tm) => timeToMin(tm) >= open);
-    return [...wrapped, ...sameDay];
+    return [...sameDay, ...wrapped];
   }
   return result;
 }
@@ -260,9 +260,16 @@ export default function BookScreen() {
     ? selectedTimes.reduce((a, b) => toAdj(a) <= toAdj(b) ? a : b)
     : null;
   const endTime = startTime ? addMin(startTime, slotDuration * selectedTimes.length) : null;
+
+  // If startTime is a post-midnight slot (e.g. 00:00 on an overnight venue),
+  // the actual calendar date of that slot is selectedDate + 1.
+  const isStartNextDay = isOvernight && startTime !== null && timeToMin(startTime) < openMin;
+  const startDateISO = isStartNextDay ? addDaysISO(selectedDateISO, 1) : selectedDateISO;
+
+  // endDate: if end clock time wraps back below start clock time, it's +1 day from startDate
   const endDateISO = startTime && endTime && timeToMin(endTime) <= timeToMin(startTime)
-    ? addDaysISO(selectedDateISO, 1)
-    : selectedDateISO;
+    ? addDaysISO(startDateISO, 1)
+    : startDateISO;
 
   function isTimeTaken(tm: string): boolean {
     const ranges = selectedSlot ? (selectedSlot.booked_ranges ?? []) : venueRanges;
@@ -323,7 +330,7 @@ export default function BookScreen() {
         venue_id: venue.id,
         slot_id: selectedSlotId || undefined,
         service_ids: selectedServiceIds.length > 0 ? selectedServiceIds : undefined,
-        date: dates[selectedDateIdx].iso,
+        date: startDateISO,
         time: startTime!,
         duration: bookDuration,
         guests,
@@ -593,6 +600,11 @@ export default function BookScreen() {
                       }}
                     >
                       <Text style={[styles.timeText, { color: textColor }]}>{tm}</Text>
+                      {isOvernight && timeToMin(tm) < openMin && (
+                        <Text style={{ fontSize: 8, color: active ? 'rgba(255,255,255,0.7)' : c.textMuted, marginTop: 1 }}>
+                          +1 день
+                        </Text>
+                      )}
                       {taken && !active && (
                         <Text style={{ fontSize: 9, color: '#EF4444', marginTop: 1 }}>{t('takenTime')}</Text>
                       )}

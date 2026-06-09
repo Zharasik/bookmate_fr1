@@ -124,7 +124,7 @@ const userLoc=${userLoc};
 const lbl=${lbl};
 const focus=${focus};
 const map=L.map('map').setView([43.238949,76.889709],12);
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'}).addTo(map);
 const icon=L.divIcon({className:'',html:'<div class="venue-dot"></div>',iconSize:[18,18],iconAnchor:[9,9]});
 const cluster=L.markerClusterGroup({maxClusterRadius:50});
 const bounds=[];
