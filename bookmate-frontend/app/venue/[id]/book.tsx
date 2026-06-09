@@ -187,8 +187,7 @@ export default function BookScreen() {
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
   const [selectedDateIdx, setSelectedDateIdx] = useState(0);
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [units, setUnits] = useState(1);
+  const [selectedTimes, setSelectedTimes] = useState<string[]>([]);
   const [guests, setGuests] = useState(1);
 
   useEffect(() => {
@@ -216,7 +215,7 @@ export default function BookScreen() {
       );
       if (selectedSlotId) {
         const slotStillExists = avail.slots.find((s: any) => s.id === selectedSlotId);
-        if (!slotStillExists) { setSelectedSlotId(null); setSelectedTime(null); }
+        if (!slotStillExists) { setSelectedSlotId(null); setSelectedTimes([]); }
       }
     } catch {
       setSlotData([]); setVenueRanges([]);
@@ -227,7 +226,7 @@ export default function BookScreen() {
 
   const handleSelectSlot = (slotId: string) => {
     if (selectedSlotId === slotId) return;
-    setSelectedSlotId(slotId); setSelectedTime(null); setUnits(1);
+    setSelectedSlotId(slotId); setSelectedTimes([]);
   };
 
   const toggleService = (serviceId: string) => {
@@ -242,16 +241,10 @@ export default function BookScreen() {
 
   const selectedSlot = slotData.find((s) => s.id === selectedSlotId) ?? null;
   const slotDuration = selectedSlot?.duration ?? 60;
-  const totalDuration = slotDuration * units;
-  const endTime = selectedTime ? addMin(selectedTime, totalDuration) : null;
   const selectedDateISO = dates[selectedDateIdx].iso;
-  const endDateISO = selectedTime && endTime && timeToMin(endTime) <= timeToMin(selectedTime)
-    ? addDaysISO(selectedDateISO, 1)
-    : selectedDateISO;
   const openTime = venue?.open_time ?? '09:00';
   const closeTime = venue?.close_time ?? '22:00';
   const timeGrid = generateTimeGrid(openTime, closeTime, slotDuration);
-  const maxUnits = Math.max(1, Math.floor(480 / slotDuration));
   const isToday = selectedDateIdx === 0;
   const openMin = timeToMin(openTime);
   const rawCloseMin = timeToMin(closeTime);
@@ -262,28 +255,36 @@ export default function BookScreen() {
     return normalizeOvernight(timeToMin(tm), openMin, isOvernight);
   }
 
-  function isTimeTaken(startTime: string): boolean {
+  // Earliest selected time (by adjusted minutes for overnight venues)
+  const startTime = selectedTimes.length > 0
+    ? selectedTimes.reduce((a, b) => toAdj(a) <= toAdj(b) ? a : b)
+    : null;
+  const endTime = startTime ? addMin(startTime, slotDuration * selectedTimes.length) : null;
+  const endDateISO = startTime && endTime && timeToMin(endTime) <= timeToMin(startTime)
+    ? addDaysISO(selectedDateISO, 1)
+    : selectedDateISO;
+
+  function isTimeTaken(tm: string): boolean {
     const ranges = selectedSlot ? (selectedSlot.booked_ranges ?? []) : venueRanges;
-    const startAdj = toAdj(startTime);
-    const checkEnd = startAdj + Math.max(slotDuration, totalDuration);
-    return hasOverlap(startAdj, checkEnd, ranges, openMin, isOvernight);
+    const startAdj = toAdj(tm);
+    return hasOverlap(startAdj, startAdj + slotDuration, ranges, openMin, isOvernight);
   }
 
-  function isTimeUnavailableDueToUnits(startTime: string): boolean {
-    return (toAdj(startTime) + slotDuration) > adjustedCloseMin;
+  function isTimeUnavailableDueToUnits(tm: string): boolean {
+    return (toAdj(tm) + slotDuration) > adjustedCloseMin;
   }
 
-  const selectedTimeOverflows = selectedTime
-    ? (toAdj(selectedTime) + totalDuration) > adjustedCloseMin
+  const selectedTimeOverflows = startTime && endTime
+    ? (toAdj(startTime) + slotDuration * selectedTimes.length) > adjustedCloseMin
     : false;
 
   function userConflicts(): any[] {
-    if (!selectedTime || !endTime) return [];
+    if (!startTime || !endTime) return [];
     return userBookings.filter((b) => {
       if (b.venue_id === venue?.id) return false;
       return rangesOverlapByDate(
         selectedDateISO,
-        selectedTime,
+        startTime,
         endTime,
         dateOnly(b.date),
         b.time,
@@ -294,27 +295,18 @@ export default function BookScreen() {
 
   const conflicts = userConflicts();
 
+  // Clear selected times when date or slot changes
   useEffect(() => {
-    if (!selectedSlot || selectedTime) return;
-    const first = timeGrid.find(
-      (tm) => !isPastTime(tm, isToday) && !isTimeTaken(tm) && !isTimeUnavailableDueToUnits(tm),
-    );
-    if (first) setSelectedTime(first);
+    setSelectedTimes([]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSlotId, units, selectedDateIdx, slotData]);
-
-  useEffect(() => {
-    if (!selectedTime) return;
-    if (isTimeTaken(selectedTime) || isTimeUnavailableDueToUnits(selectedTime)) setSelectedTime(null);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [units]);
+  }, [selectedSlotId, selectedDateIdx]);
 
   const handleConfirm = async () => {
     if (!venue) return;
     if (slotData.length > 0 && !selectedSlotId) {
       Alert.alert(t('selectPlace'), t('selectPlaceFirst2')); return;
     }
-    if (!selectedTime) {
+    if (selectedTimes.length === 0) {
       Alert.alert(t('selectTime'), t('selectTimeAlert')); return;
     }
     if (conflicts.length > 0) {
@@ -325,23 +317,24 @@ export default function BookScreen() {
       return;
     }
     setSubmitting(true);
+    const bookDuration = slotDuration * selectedTimes.length;
     try {
       await api.createBooking({
         venue_id: venue.id,
         slot_id: selectedSlotId || undefined,
         service_ids: selectedServiceIds.length > 0 ? selectedServiceIds : undefined,
         date: dates[selectedDateIdx].iso,
-        time: selectedTime,
-        duration: totalDuration,
+        time: startTime!,
+        duration: bookDuration,
         guests,
       } as any);
       Alert.alert(
         '✓ ' + t('bookingConfirmed'),
         t('bookingCreatedMsg')
           .replace('{date}', formatBookingDate(selectedDateISO, endDateISO, lang))
-          .replace('{s}', selectedTime)
+          .replace('{s}', startTime!)
           .replace('{e}', endTime ?? '')
-          .replace('{dur}', dur(totalDuration)),
+          .replace('{dur}', dur(bookDuration)),
         [
           { text: t('goToBookings'), onPress: () => router.push('/(tabs)/bookings' as any) },
           { text: t('back'), onPress: () => router.back(), style: 'cancel' },
@@ -373,9 +366,9 @@ export default function BookScreen() {
 
   const confirmBtnText = () => {
     if (slotData.length > 0 && !selectedSlotId) return t('selectPlaceFirst');
-    if (!selectedTime) return t('selectTimeFirst');
+    if (selectedTimes.length === 0) return t('selectTimeFirst');
     if (selectedTimeOverflows) return t('exceedsClose');
-    return t('bookWithDuration').replace('{d}', dur(totalDuration));
+    return t('bookWithDuration').replace('{d}', dur(slotDuration * selectedTimes.length));
   };
 
   const guestLabel = () => {
@@ -421,7 +414,7 @@ export default function BookScreen() {
               }]}
               onPress={() => {
                 setSelectedDateIdx(i);
-                if (i === 0 && selectedTime && isPastTime(selectedTime, true)) setSelectedTime(null);
+                if (i === 0) setSelectedTimes((prev) => prev.filter((tm) => !isPastTime(tm, true)));
               }}
             >
               <Text style={[styles.dateDay, { color: selectedDateIdx === i ? '#fff' : c.textSecondary }]}>{d.day}</Text>
@@ -534,10 +527,21 @@ export default function BookScreen() {
         {/* Time grid */}
         {(selectedSlotId || slotData.length === 0) && (
           <>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 24, marginBottom: 14 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 24, marginBottom: 4 }}>
               <Text style={[styles.secTitle, { color: c.text, marginBottom: 0, flex: 1 }]}>{t('selectTime')}</Text>
               {loadingAvail && <ActivityIndicator size="small" color={c.primary} />}
             </View>
+            <Text style={[styles.hint, { color: c.textMuted, marginBottom: 12 }]}>
+              Нажмите на слот чтобы выбрать, ещё раз — снять. Несколько слотов = общая длительность.
+            </Text>
+            {selectedTimes.length > 0 && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 8 }}>
+                <Clock size={14} color={c.primary} />
+                <Text style={{ color: c.primary, fontSize: 13, fontWeight: '600' }}>
+                  {startTime} – {endTime} · {dur(slotDuration * selectedTimes.length)}
+                </Text>
+              </View>
+            )}
             {timeGrid.length === 0 ? (
               <Text style={[styles.hint, { color: c.textMuted }]}>{t('noTimeSlots')}</Text>
             ) : (
@@ -547,7 +551,7 @@ export default function BookScreen() {
                   const taken = isTimeTaken(tm);
                   const overflow = isTimeUnavailableDueToUnits(tm);
                   const disabled = past || taken || overflow;
-                  const active = selectedTime === tm;
+                  const active = selectedTimes.includes(tm);
                   let bg = active ? c.primary : c.card;
                   let border = active ? c.primary : c.border;
                   let textColor = active ? '#fff' : c.text;
@@ -561,7 +565,10 @@ export default function BookScreen() {
                         if (taken) {
                           Alert.alert(t('selectTime'), t('takenAlert')); return;
                         }
-                        if (!past && !overflow) setSelectedTime(tm);
+                        if (past || overflow) return;
+                        setSelectedTimes((prev) =>
+                          prev.includes(tm) ? prev.filter((t) => t !== tm) : [...prev, tm],
+                        );
                       }}
                     >
                       <Text style={[styles.timeText, { color: textColor }]}>{tm}</Text>
@@ -573,25 +580,6 @@ export default function BookScreen() {
                 })}
               </View>
             )}
-          </>
-        )}
-
-        {/* Duration */}
-        {selectedTime && (
-          <>
-            <Text style={[styles.secTitle, { color: c.text, marginTop: 24 }]}>{t('duration')}</Text>
-            <View style={[styles.unitsRow, { backgroundColor: c.card, borderColor: c.border }]}>
-              <Pressable onPress={() => setUnits(Math.max(1, units - 1))} style={[styles.unitBtn, { backgroundColor: c.bg }]}>
-                <Minus size={20} color={c.text} />
-              </Pressable>
-              <View style={{ alignItems: 'center' }}>
-                <Text style={[styles.unitNum, { color: c.text }]}>{units}×</Text>
-                <Text style={[styles.unitLabel, { color: c.primary }]}>{dur(totalDuration)}</Text>
-              </View>
-              <Pressable onPress={() => setUnits(Math.min(maxUnits, units + 1))} style={[styles.unitBtn, { backgroundColor: c.bg }]}>
-                <Plus size={20} color={c.text} />
-              </Pressable>
-            </View>
           </>
         )}
 
@@ -631,20 +619,20 @@ export default function BookScreen() {
         )}
 
         {/* Summary */}
-        {selectedTime && (
+        {startTime && (
           <View style={[styles.summary, { backgroundColor: `${c.primary}10`, borderColor: `${c.primary}30` }]}>
             <Text style={[styles.summaryTitle, { color: c.text }]}>{t('total')}</Text>
             <Text style={[styles.summaryRow, { color: c.textSecondary }]}>
               📅 {formatBookingDate(selectedDateISO, endDateISO, lang)}
             </Text>
             <Text style={[styles.summaryRow, { color: c.textSecondary }]}>
-              ⏰ {selectedTime} – {endTime} ({dur(totalDuration)})
+              ⏰ {startTime} – {endTime} ({dur(slotDuration * selectedTimes.length)})
             </Text>
             {selectedSlot && (
               <Text style={[styles.summaryRow, { color: c.textSecondary }]}>
                 📍 {selectedSlot.name}
                 {selectedSlot.price > 0
-                  ? ` · ${(selectedSlot.price * units).toLocaleString()} ₸`
+                  ? ` · ${(selectedSlot.price * selectedTimes.length).toLocaleString()} ₸`
                   : ` · ${t('free')}`}
               </Text>
             )}
@@ -666,12 +654,12 @@ export default function BookScreen() {
       <View style={[styles.footer, { backgroundColor: c.card, borderTopColor: c.border }]}>
         <Pressable
           onPress={handleConfirm}
-          disabled={submitting || (slotData.length > 0 && !selectedSlotId) || !selectedTime || selectedTimeOverflows}
+          disabled={submitting || (slotData.length > 0 && !selectedSlotId) || selectedTimes.length === 0 || selectedTimeOverflows}
           style={styles.confirmWrap}
         >
           <LinearGradient
             colors={
-              submitting || (slotData.length > 0 && !selectedSlotId) || !selectedTime || selectedTimeOverflows
+              submitting || (slotData.length > 0 && !selectedSlotId) || selectedTimes.length === 0 || selectedTimeOverflows
                 ? ['#93C5FD', '#93C5FD']
                 : ['#2563EB', '#3B82F6']
             }
