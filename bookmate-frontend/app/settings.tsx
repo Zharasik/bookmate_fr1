@@ -31,12 +31,12 @@ export default function SettingsScreen() {
   const [savingPass, setSavingPass] = useState(false);
 
   const handleSaveProfile = async () => {
-    if (!name.trim()) { Alert.alert('Ошибка', 'Имя не может быть пустым'); return; }
+    if (!name.trim()) { Alert.alert(t('error'), t('errNameRequired')); return; }
     setSavingProfile(true);
     try {
       const updated = await api.updateProfile({ name: name.trim(), phone: phone.trim() || undefined });
       updateUser(updated);
-      Alert.alert('Сохранено ✓');
+      Alert.alert(t('savedOk'));
     } catch (e: any) {
       Alert.alert(t('error'), e.message);
     } finally {
@@ -45,13 +45,13 @@ export default function SettingsScreen() {
   };
 
   const handleChangePassword = async () => {
-    if (!currentPass || !newPass) { Alert.alert('Ошибка', 'Заполните оба поля'); return; }
-    if (newPass.length < 6) { Alert.alert('Ошибка', 'Новый пароль минимум 6 символов'); return; }
+    if (!currentPass || !newPass) { Alert.alert(t('error'), t('errFillBoth')); return; }
+    if (newPass.length < 6) { Alert.alert(t('error'), t('errPassMin6')); return; }
     setSavingPass(true);
     try {
       await api.changePassword(currentPass, newPass);
       setCurrentPass(''); setNewPass('');
-      Alert.alert('Пароль изменён ✓');
+      Alert.alert(t('passChangedOk'));
     } catch (e: any) {
       Alert.alert(t('error'), e.message);
     } finally {
@@ -73,18 +73,14 @@ export default function SettingsScreen() {
 
         {/* Appearance */}
         <View style={[styles.section, { backgroundColor: c.card }]}>
-          <Text style={[styles.label, { color: c.textMuted }]}>ВНЕШНИЙ ВИД</Text>
+          <Text style={[styles.label, { color: c.textMuted }]}>{t('sectionAppearance')}</Text>
 
           <View style={styles.row}>
             <View style={[styles.icon, { backgroundColor: `${c.textSecondary}20` }]}>
               <Moon size={18} color={c.textSecondary} />
             </View>
             <Text style={[styles.rowLabel, { color: c.text }]}>{t('darkTheme')}</Text>
-            <Switch
-              value={dark}
-              onValueChange={toggleTheme}
-              trackColor={{ true: c.primary, false: c.border }}
-            />
+            <Switch value={dark} onValueChange={toggleTheme} trackColor={{ true: c.primary, false: c.border }} />
           </View>
 
           <Pressable style={styles.row} onPress={() => setLang(lang === 'ru' ? 'kk' : 'ru')}>
@@ -102,7 +98,7 @@ export default function SettingsScreen() {
 
         {/* Profile edit */}
         <View style={[styles.section, { backgroundColor: c.card }]}>
-          <Text style={[styles.label, { color: c.textMuted }]}>ПРОФИЛЬ</Text>
+          <Text style={[styles.label, { color: c.textMuted }]}>{t('sectionProfile')}</Text>
 
           <View style={[styles.field, { borderColor: c.border, backgroundColor: c.inputBg }]}>
             <User size={16} color={c.textMuted} />
@@ -110,7 +106,7 @@ export default function SettingsScreen() {
               style={[styles.fieldInput, { color: c.text }]}
               value={name}
               onChangeText={setName}
-              placeholder="Имя"
+              placeholder={t('name')}
               placeholderTextColor={c.textMuted}
             />
           </View>
@@ -141,7 +137,7 @@ export default function SettingsScreen() {
 
         {/* Change password */}
         <View style={[styles.section, { backgroundColor: c.card }]}>
-          <Text style={[styles.label, { color: c.textMuted }]}>БЕЗОПАСНОСТЬ</Text>
+          <Text style={[styles.label, { color: c.textMuted }]}>{t('sectionSecurity')}</Text>
 
           <View style={[styles.field, { borderColor: c.border, backgroundColor: c.inputBg }]}>
             <Lock size={16} color={c.textMuted} />
@@ -149,7 +145,7 @@ export default function SettingsScreen() {
               style={[styles.fieldInput, { color: c.text }]}
               value={currentPass}
               onChangeText={setCurrentPass}
-              placeholder="Текущий пароль"
+              placeholder={t('currentPassword')}
               placeholderTextColor={c.textMuted}
               secureTextEntry
             />
@@ -161,7 +157,7 @@ export default function SettingsScreen() {
               style={[styles.fieldInput, { color: c.text }]}
               value={newPass}
               onChangeText={setNewPass}
-              placeholder="Новый пароль (мин. 6 символов)"
+              placeholder={t('newPassword')}
               placeholderTextColor={c.textMuted}
               secureTextEntry
             />
@@ -174,7 +170,7 @@ export default function SettingsScreen() {
           >
             {savingPass
               ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.btnText}>Изменить пароль</Text>}
+              : <Text style={styles.btnText}>{t('changePassword')}</Text>}
           </Pressable>
         </View>
 

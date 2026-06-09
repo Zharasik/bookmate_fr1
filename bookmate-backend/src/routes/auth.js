@@ -74,7 +74,6 @@ async function sendVerificationEmail(email, name, code) {
   return Boolean(info?.messageId);
 }
 
-// ─── REGISTER ────────────────────────────────────────────
 router.post('/register', async (req, res) => {
   try {
     const { email, password, name, phone, role } = req.body;
@@ -132,13 +131,11 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// ─── VERIFY EMAIL ─────────────────────────────────────────
 router.post('/verify-email', async (req, res) => {
   try {
     const { userId, code } = req.body;
     if (!userId || !code) return res.status(400).json({ error: 'userId и code обязательны' });
 
-    // New flow: pending registration must be confirmed before user is created
     const pending = await pool.query(
       `SELECT * FROM pending_registrations
        WHERE id=$1 AND code=$2 AND expires_at>now()
@@ -158,7 +155,6 @@ router.post('/verify-email', async (req, res) => {
       return res.json({ token: signToken(user.id, user.role), user });
     }
 
-    // Legacy flow compatibility
     const { rows } = await pool.query(
       `SELECT * FROM email_verifications WHERE user_id=$1 AND code=$2 AND used=false AND expires_at>now() ORDER BY created_at DESC LIMIT 1`,
       [userId, code]
@@ -180,7 +176,6 @@ router.post('/verify-email', async (req, res) => {
   }
 });
 
-// ─── RESEND VERIFICATION ──────────────────────────────────
 router.post('/resend-verification', async (req, res) => {
   try {
     const { userId } = req.body;
@@ -230,7 +225,6 @@ router.post('/resend-verification', async (req, res) => {
   }
 });
 
-// ─── LOGIN ────────────────────────────────────────────────
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -257,7 +251,72 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// ─── GET ME ───────────────────────────────────────────────
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email обязателен' });
+    const normalizedEmail = email.trim().toLowerCase();
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS password_resets (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        email text NOT NULL,
+        code text NOT NULL,
+        expires_at timestamptz NOT NULL,
+        used boolean DEFAULT false,
+        created_at timestamptz DEFAULT now()
+      )
+    `);
+
+    const { rows } = await pool.query('SELECT id, name FROM users WHERE email=$1', [normalizedEmail]);
+    if (!rows[0]) return res.json({ message: 'Если такой email зарегистрирован, код будет отправлен.' });
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    await pool.query(
+      `INSERT INTO password_resets (email, code, expires_at) VALUES ($1, $2, $3)`,
+      [normalizedEmail, code, new Date(Date.now() + 15 * 60 * 1000)]
+    );
+
+    let mailSent = false;
+    try { mailSent = await sendVerificationEmail(normalizedEmail, rows[0].name, code); }
+    catch (e) { console.error('Forgot password mail error:', e.message); }
+
+    res.json({
+      message: 'Если такой email зарегистрирован, код будет отправлен.',
+      dev_code: mailSent ? null : code,
+    });
+  } catch (err) {
+    console.error('Forgot password error:', err);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+});
+
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body;
+    if (!email || !code || !newPassword) return res.status(400).json({ error: 'Все поля обязательны' });
+    if (newPassword.length < 8) return res.status(400).json({ error: 'Пароль минимум 8 символов' });
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const { rows } = await pool.query(
+      `SELECT id FROM password_resets
+       WHERE email=$1 AND code=$2 AND used=false AND expires_at>now()
+       ORDER BY created_at DESC LIMIT 1`,
+      [normalizedEmail, code]
+    );
+    if (!rows[0]) return res.status(400).json({ error: 'Неверный или истекший код' });
+
+    const hash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    await pool.query('UPDATE users SET password_hash=$1 WHERE email=$2', [hash, normalizedEmail]);
+    await pool.query('UPDATE password_resets SET used=true WHERE id=$1', [rows[0].id]);
+
+    res.json({ message: 'Пароль успешно изменён' });
+  } catch (err) {
+    console.error('Reset password error:', err);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+});
+
 router.get('/me', auth, async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -269,7 +328,6 @@ router.get('/me', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Ошибка сервера' }); }
 });
 
-// ─── UPDATE PROFILE ───────────────────────────────────────
 router.put('/me', auth, async (req, res) => {
   try {
     const { name, phone, avatar_url } = req.body;
@@ -282,7 +340,6 @@ router.put('/me', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Ошибка сервера' }); }
 });
 
-// ─── CHANGE PASSWORD ──────────────────────────────────────
 router.post('/change-password', auth, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;

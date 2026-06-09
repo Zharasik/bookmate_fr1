@@ -3,7 +3,6 @@ const pool = require('../db/pool');
 
 const router = Router();
 
-// GET services for a venue (public)
 router.get('/venue/:venueId', async (req, res) => {
   try {
     const { rows } = await pool.query(

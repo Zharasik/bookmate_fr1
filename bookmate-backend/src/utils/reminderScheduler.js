@@ -1,7 +1,6 @@
 const cron = require('node-cron');
 const pool = require('../db/pool');
 
-// Ensures the tracking table exists
 async function ensureRemindersTable() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS booking_reminders_sent (
@@ -16,7 +15,6 @@ async function ensureRemindersTable() {
 
 async function sendReminders() {
   try {
-    // Get all confirmed/pending upcoming bookings with user info and venue name
     const { rows: bookings } = await pool.query(`
       SELECT b.id, b.user_id, b.date, b.time, v.name AS venue_name
       FROM bookings b
@@ -38,7 +36,6 @@ async function sendReminders() {
       if (diffMin >= 3 && diffMin <= 7) remindersToSend.push('5min');
 
       for (const type of remindersToSend) {
-        // Skip if already sent
         const { rows } = await pool.query(
           'SELECT 1 FROM booking_reminders_sent WHERE booking_id=$1 AND type=$2',
           [booking.id, type]
@@ -70,7 +67,6 @@ async function sendReminders() {
 function startReminderScheduler() {
   ensureRemindersTable().catch(console.error);
 
-  // Runs every minute
   cron.schedule('* * * * *', sendReminders);
   console.log('[Reminder] Scheduler started — checking every minute');
 }

@@ -22,15 +22,14 @@ export default function Reviews() {
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [rating, setRating] = useState('');
-  const [appealsFilter, setAppealsFilter] = useState('');   // '' | 'only'
-  const [activeTab, setActiveTab] = useState('reviews');     // 'reviews' | 'appeals'
+  const [appealsFilter, setAppealsFilter] = useState('');
+  const [activeTab, setActiveTab] = useState('reviews');
 
-  // Appeals state
   const [appeals, setAppeals] = useState([]);
   const [appealsLoading, setAppealsLoading] = useState(false);
   const [appealStatus, setAppealStatus] = useState('pending');
   const [processingId, setProcessingId] = useState(null);
-  const [noteModal, setNoteModal] = useState(null);   // { id, action }
+  const [noteModal, setNoteModal] = useState(null);
   const [adminNote, setAdminNote] = useState('');
 
   const LIMIT = 50;
@@ -91,7 +90,6 @@ export default function Reviews() {
         )}
       </div>
 
-      {/* Tabs */}
       <div className="tabs">
         <button className={`tab-btn${activeTab === 'reviews' ? ' active' : ''}`} onClick={() => setActiveTab('reviews')}>
           Отзывы
@@ -101,10 +99,8 @@ export default function Reviews() {
         </button>
       </div>
 
-      {/* ── REVIEWS TAB ── */}
       {activeTab === 'reviews' && (
         <>
-          {/* Filters */}
           <div className="filter-bar" style={{ gap: 8, flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', gap: 6 }}>
               <input
@@ -197,7 +193,6 @@ export default function Reviews() {
                     </tbody>
                   </table>
 
-                  {/* Pagination */}
                   {data.pages > 1 && (
                     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, padding: 20 }}>
                       <button className="btn btn-ghost btn-sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>← Назад</button>
@@ -212,7 +207,6 @@ export default function Reviews() {
         </>
       )}
 
-      {/* ── APPEALS TAB ── */}
       {activeTab === 'appeals' && (
         <>
           <div className="filter-bar">
@@ -319,7 +313,6 @@ export default function Reviews() {
         </>
       )}
 
-      {/* Admin note modal */}
       {noteModal && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setNoteModal(null)}>
           <div className="modal" style={{ maxWidth: 440 }}>

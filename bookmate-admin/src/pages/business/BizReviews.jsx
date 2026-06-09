@@ -26,12 +26,11 @@ export default function BizReviews() {
   const [venueFilter, setVenueFilter] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // Appeal modal
   const [appealTarget, setAppealTarget] = useState(null);
   const [appealReason, setAppealReason] = useState('');
   const [appealOther, setAppealOther] = useState('');
   const [appealSubmitting, setAppealSubmitting] = useState(false);
-  const [appealed, setAppealed] = useState(new Set()); // review IDs already appealed this session
+  const [appealed, setAppealed] = useState(new Set());
 
   const load = () => {
     Promise.all([
@@ -90,7 +89,6 @@ export default function BizReviews() {
         </div>
       </div>
 
-      {/* Rating distribution */}
       {filtered.length > 0 && (
         <div className="card" style={{ marginBottom: 16, padding: '16px 20px' }}>
           <div style={{ display: 'flex', gap: 32, alignItems: 'flex-start' }}>
@@ -131,7 +129,6 @@ export default function BizReviews() {
         </div>
       )}
 
-      {/* Venue filter tabs */}
       {venues.length > 1 && (
         <div className="tabs">
           <button className={`tab-btn${venueFilter === '' ? ' active' : ''}`} onClick={() => setVenueFilter('')}>
@@ -234,7 +231,6 @@ export default function BizReviews() {
         </div>
       </div>
 
-      {/* Appeal modal */}
       {appealTarget && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setAppealTarget(null)}>
           <div className="modal" style={{ maxWidth: 460 }}>
@@ -243,7 +239,6 @@ export default function BizReviews() {
               <button className="btn btn-ghost btn-sm" onClick={() => setAppealTarget(null)}>✕</button>
             </div>
             <div className="modal-body">
-              {/* Review preview */}
               <div style={{
                 background: '#F9FAFB', borderRadius: 10, padding: 12, marginBottom: 20,
                 border: '1px solid #E5E7EB',

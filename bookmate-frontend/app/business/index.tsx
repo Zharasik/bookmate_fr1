@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import {
-  ChevronLeft, Calendar, TrendingUp, Star, Users, Clock, AlertCircle, BarChart2,
+  ChevronLeft, Calendar, TrendingUp, Star, Users, Clock, AlertCircle, BarChart2, MapPin,
 } from 'lucide-react-native';
 import { useTheme } from '../../hooks/useHelpers';
 import { useStore } from '../../hooks/useStore';
@@ -178,6 +178,15 @@ export default function BusinessDashboard() {
                   {v.is_active ? 'Активно' : 'Неактивно'}
                 </Text>
               </View>
+              <Pressable
+                style={[styles.locBtn, { backgroundColor: c.bg }]}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  router.push(`/business/location?venueId=${v.id}&venueName=${encodeURIComponent(v.name)}&lat=${v.latitude ?? ''}&lng=${v.longitude ?? ''}` as any);
+                }}
+              >
+                <MapPin size={16} color={c.primary} />
+              </Pressable>
             </Pressable>
           ))}
           {venues.length === 0 && (
@@ -237,6 +246,7 @@ const styles = StyleSheet.create({
   venueName: { fontSize: 15, fontWeight: '600' },
   venueMeta: { fontSize: 12, marginTop: 2 },
   activeChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  locBtn: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
   empty: { textAlign: 'center', paddingVertical: 16, fontSize: 14 },
   actions: { flexDirection: 'row', gap: 12 },
   actionBtn: { flex: 1, borderRadius: 16, padding: 16, alignItems: 'center', gap: 8, elevation: 2 },

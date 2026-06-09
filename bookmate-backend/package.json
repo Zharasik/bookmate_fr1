@@ -6,8 +6,13 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
+    "test": "jest --forceExit",
     "db:init": "node src/db/init.js",
     "db:update-notifications": "node src/db/updateNotificationTexts.js"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": ["**/src/__tests__/**/*.test.js"]
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
@@ -26,7 +31,9 @@
     "uuid": "^10.0.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.4"
+    "jest": "^30.4.2",
+    "nodemon": "^3.1.4",
+    "supertest": "^7.2.2"
   },
   "engines": {
     "node": ">=18"

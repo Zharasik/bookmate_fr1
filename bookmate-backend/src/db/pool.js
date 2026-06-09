@@ -1,5 +1,8 @@
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
 require('dotenv').config();
+
+
+types.setTypeParser(1082, (val) => val);
 
 const connStr = process.env.DATABASE_URL || '';
 const useSSL = connStr.includes('neon.tech') || connStr.includes('sslmode=require');

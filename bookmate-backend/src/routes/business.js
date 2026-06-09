@@ -21,9 +21,7 @@ const upload = multer({
   },
 });
 
-// ═══════════════════════════════════════════════════════
-// MY VENUES
-// ═══════════════════════════════════════════════════════
+
 router.get("/venues", async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -83,7 +81,7 @@ router.post("/venues", upload.single("image"), async (req, res) => {
         price_range,
         latitude || 0,
         longitude || 0,
-        amenities ? (Array.isArray(amenities) ? amenities : JSON.parse(amenities)) : [],
+        amenities || [],
         open_time || "09:00",
         close_time || "21:00",
         phone,
@@ -115,7 +113,8 @@ router.put("/venues/:id", upload.single("image"), async (req, res) => {
     } = req.body;
     const image_url = req.file
       ? `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`
-      : req.body.image_url;
+      : req.body.image_url || null;
+    const isActiveParsed = is_active === undefined ? null : (is_active === 'false' || is_active === false) ? false : true;
 
     const check = await pool.query(
       "SELECT id FROM venues WHERE id=$1 AND owner_id=$2",
@@ -136,20 +135,20 @@ router.put("/venues/:id", upload.single("image"), async (req, res) => {
        WHERE id=$15 AND owner_id=$16
        RETURNING *`,
       [
-        name,
-        category,
-        location,
-        city,
-        description,
+        name || null,
+        category || null,
+        location || null,
+        city || null,
+        description || null,
         image_url,
-        price_range,
-        latitude,
-        longitude,
-        amenities,
-        open_time,
-        close_time,
-        phone,
-        is_active,
+        price_range || null,
+        latitude || null,
+        longitude || null,
+        amenities || null,
+        open_time || null,
+        close_time || null,
+        phone || null,
+        isActiveParsed,
         req.params.id,
         req.userId,
       ],
@@ -161,9 +160,7 @@ router.put("/venues/:id", upload.single("image"), async (req, res) => {
   }
 });
 
-// ═══════════════════════════════════════════════════════
-// SLOTS MANAGEMENT
-// ═══════════════════════════════════════════════════════
+
 router.get("/venues/:venueId/slots", async (req, res) => {
   try {
     const check = await pool.query(
@@ -197,14 +194,10 @@ router.post("/venues/:venueId/slots", upload.single("image"), async (req, res) =
     if (!name)
       return res.status(400).json({ error: "Название слота обязательно" });
 
-    const image_url = req.file
-      ? `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`
-      : req.body.image_url || null;
-
     const { rows } = await pool.query(
-      `INSERT INTO venue_slots (venue_id, name, description, capacity, price, duration, image_url)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [req.params.venueId, name, description, capacity || 1, price || 0, duration || 60, image_url],
+      `INSERT INTO venue_slots (venue_id, name, description, capacity, price, duration)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [req.params.venueId, name, description, capacity || 1, price || 0, duration || 60],
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -225,18 +218,13 @@ router.put("/slots/:slotId", upload.single("image"), async (req, res) => {
     if (check.rows.length === 0)
       return res.status(404).json({ error: "Слот не найден" });
 
-    const image_url = req.file
-      ? `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`
-      : req.body.image_url;
-
     const { rows } = await pool.query(
       `UPDATE venue_slots SET
          name=COALESCE($1,name), description=COALESCE($2,description),
          capacity=COALESCE($3,capacity), price=COALESCE($4,price),
-         duration=COALESCE($5,duration), is_active=COALESCE($6,is_active),
-         image_url=COALESCE($7,image_url)
-       WHERE id=$8 RETURNING *`,
-      [name, description, capacity, price, duration, is_active, image_url, req.params.slotId],
+         duration=COALESCE($5,duration), is_active=COALESCE($6,is_active)
+       WHERE id=$7 RETURNING *`,
+      [name, description, capacity, price, duration, is_active, req.params.slotId],
     );
     res.json(rows[0]);
   } catch (err) {
@@ -265,9 +253,7 @@ router.delete("/slots/:slotId", async (req, res) => {
   }
 });
 
-// ═══════════════════════════════════════════════════════
-// BOOKINGS MANAGEMENT
-// ═══════════════════════════════════════════════════════
+
 router.get("/bookings", async (req, res) => {
   try {
     const { status, venue_id, date } = req.query;
@@ -303,7 +289,14 @@ router.get("/bookings", async (req, res) => {
     }
     if (date) {
       params.push(date);
-      sql += ` AND b.date=$${params.length}`;
+      sql += ` AND b.date <= $${params.length}::date
+        AND COALESCE(
+          b.end_date,
+          CASE WHEN b.end_time IS NOT NULL AND b.end_time <= b.time
+            THEN b.date + 1
+            ELSE b.date
+          END
+        ) >= $${params.length}::date`;
     }
 
     sql += ` ORDER BY CASE b.status WHEN 'in_progress' THEN 1 WHEN 'confirmed' THEN 2 WHEN 'pending' THEN 3 WHEN 'completed' THEN 4 WHEN 'cancelled' THEN 5 ELSE 6 END, b.date DESC, b.time DESC`;
@@ -454,9 +447,7 @@ router.patch("/bookings/:id/complete", async (req, res) => {
   }
 });
 
-// ═══════════════════════════════════════════════════════
-// STATISTICS
-// ═══════════════════════════════════════════════════════
+
 router.get("/stats", async (req, res) => {
   try {
     const today = new Date().toISOString().split("T")[0];
@@ -525,7 +516,7 @@ router.get("/stats", async (req, res) => {
       ),
     ]);
 
-    // Bookings by day for last 7 days
+   
     const weeklyChart = await pool.query(
       `SELECT b.date::text AS day, COUNT(*) AS bookings, COALESCE(SUM(b.total_price),0) AS revenue
        FROM bookings b JOIN venues v ON v.id=b.venue_id
@@ -552,9 +543,7 @@ router.get("/stats", async (req, res) => {
   }
 });
 
-// ═══════════════════════════════════════════════════════
-// SERVICES MANAGEMENT (for owner's venues)
-// ═══════════════════════════════════════════════════════
+
 router.get("/venues/:venueId/services", async (req, res) => {
   try {
     const check = await pool.query(
@@ -594,13 +583,11 @@ router.post("/venues/:venueId/services", async (req, res) => {
   }
 });
 
-// ═══════════════════════════════════════════════════════
-// APPEAL A CLIENT REVIEW (business flags review on own venue)
-// ═══════════════════════════════════════════════════════
+
 router.post("/reviews/:reviewId/appeal", async (req, res) => {
   try {
     const { reason } = req.body;
-    // Verify the review belongs to one of this owner's venues
+    
     const check = await pool.query(
       `SELECT r.id FROM reviews r
        JOIN venues v ON v.id = r.venue_id
@@ -628,9 +615,7 @@ router.post("/reviews/:reviewId/appeal", async (req, res) => {
   }
 });
 
-// ═══════════════════════════════════════════════════════
-// REVIEWS — read reviews for owner's venues
-// ═══════════════════════════════════════════════════════
+
 router.get("/reviews", async (req, res) => {
   try {
     const { venue_id } = req.query;
@@ -654,9 +639,7 @@ router.get("/reviews", async (req, res) => {
   }
 });
 
-// ═══════════════════════════════════════════════════════
-// RATE CLIENT after completing a booking
-// ═══════════════════════════════════════════════════════
+
 router.post("/bookings/:id/rate-client", async (req, res) => {
   const client = await pool.connect();
   try {
