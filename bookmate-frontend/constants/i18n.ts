@@ -26,6 +26,7 @@ const translations: Record<Lang, Record<string, string>> = {
     resendCode: 'Отправить повторно',
     devMode: 'DEV режим — SMTP не настроен',
     devHint: 'Нажми чтобы вставить код автоматически',
+    demoAccounts: 'Demo аккаунты',
     // Validation
     errNameRequired: 'Введите имя',
     errNameShort: 'Имя минимум 2 символа',
@@ -144,6 +145,7 @@ const translations: Record<Lang, Record<string, string>> = {
     personOne: 'ь',
     personFew: 'я',
     selectService: 'Выберите услугу',
+    appSubtitle: 'Бронируй. Приходи. Наслаждайся.',
 
     // Reviews
     writeReview: 'Написать отзыв',
@@ -151,6 +153,9 @@ const translations: Record<Lang, Record<string, string>> = {
     yourRating: 'Ваша оценка',
     yourComment: 'Ваш комментарий',
     submit: 'Отправить',
+
+    lightTheme: 'Светлая тема',
+    darkTheme: 'Тёмная тема',
 
     // Notifications
     noNotifications: 'Нет уведомлений',
@@ -163,7 +168,6 @@ const translations: Record<Lang, Record<string, string>> = {
     helpSupport: 'Помощь',
     logOut: 'Выйти',
     language: 'Язык',
-    darkTheme: 'Тёмная тема',
     phone: 'Телефон',
     save: 'Сохранить',
 
@@ -260,7 +264,10 @@ const translations: Record<Lang, Record<string, string>> = {
     passChangedOk: 'Пароль изменён ✓',
     errFillBoth: 'Заполните оба поля',
     errPassMin6: 'Новый пароль минимум 6 символов',
-      
+
+    maxByBooking: 'Нельзя позже — бронь или закрытие в {t}',
+    
+    wrongCredentials: 'Неверный email или пароль',
 
     // Help (FAQ) ← НОВОЕ
     helpFaqTitle: 'FAQ — Частые вопросы',
@@ -310,6 +317,9 @@ const translations: Record<Lang, Record<string, string>> = {
     resendCode: 'Қайта жіберу',
     devMode: 'DEV режим — SMTP баптанбаған',
     devHint: 'Кодты автоматты енгізу үшін басыңыз',
+    appSubtitle: 'Жалда. Кел. Ләззат ал.',
+    demoAccounts: 'Demo аккаунттары',
+
     // Validation
     createAccount: 'Аккаунт жасаңыз',
     errNameRequired: 'Атыңызды енгізіңіз',
@@ -342,6 +352,8 @@ const translations: Record<Lang, Record<string, string>> = {
     bookings: 'Брондар',
     notifications: 'Хабарламалар',
     profile: 'Профиль',
+    maxByBooking: 'Одан кейін брондалған немесе жабылу {t}',
+    wrongCredentials: 'Email немесе құпия сөз қате',
 
     // Explore
     searchPlaceholder: 'Клуб, боулинг, бильярд іздеу',
@@ -377,6 +389,9 @@ const translations: Record<Lang, Record<string, string>> = {
     appealReason1: 'Қорлау бар',          appealReason2: 'Жалған пікір',
     appealReason3: 'Мекемеге қатысы жоқ', appealReason4: 'Ережені бұзады',
     appealReason5: 'Басқа',
+
+    lightTheme: 'Ашық тақырып',
+    darkTheme: 'Қараңғы тақырып',
 
     // Venue Detail
     about: 'Сипаттама',
@@ -423,7 +438,6 @@ const translations: Record<Lang, Record<string, string>> = {
     helpSupport: 'Көмек',
     logOut: 'Шығу',
     language: 'Тіл',
-    darkTheme: 'Қараңғы тақырып',
     phone: 'Телефон',
     save: 'Сақтау',
     businessPanel: 'Бизнес панель',
