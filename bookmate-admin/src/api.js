@@ -106,6 +106,7 @@ export const api = {
     cancelBooking:  (id) => request(`/api/business/bookings/${id}/cancel`,  { method: 'PATCH' }),
     startBooking:   (id) => request(`/api/business/bookings/${id}/start`,   { method: 'PATCH' }),
     completeBooking:(id) => request(`/api/business/bookings/${id}/complete`, { method: 'PATCH' }),
+    deleteBooking:  (id) => request(`/api/business/bookings/${id}`, { method: 'DELETE' }),
     rateClient: (id, data) => request(`/api/business/bookings/${id}/rate-client`, { method: 'POST', body: JSON.stringify(data) }),
     getReviews: (venueId) => request(`/api/business/reviews${venueId ? '?venue_id=' + venueId : ''}`),
     appealReview: (reviewId, reason) =>

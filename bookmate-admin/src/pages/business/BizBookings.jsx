@@ -50,6 +50,14 @@ export default function BizBookings() {
     finally{setActing(null);}
   };
 
+  const del = async (id) => {
+    if(!window.confirm('Удалить запись о бронировании? Действие необратимо.'))return;
+    setActing(id+'delete');
+    try { await api.biz.deleteBooking(id); load(); }
+    catch(e){alert(e.message);}
+    finally{setActing(null);}
+  };
+
   const submitRate = async()=>{
     if(!rateModal)return;
     setRateLoading(true);
@@ -113,6 +121,7 @@ export default function BizBookings() {
                           {b.status==='confirmed'&&<><button className="btn btn-sm" style={{background:'#EDE9FE',color:'#5B21B6'}} disabled={!!acting} onClick={()=>action(b.id,'start')}>▶ Начать</button><button className="btn btn-sm" style={{background:'#DBEAFE',color:'#1E40AF'}} disabled={!!acting} onClick={()=>action(b.id,'complete')}>✓✓ Завершить</button><button className="btn btn-danger btn-sm" disabled={!!acting} onClick={()=>action(b.id,'cancel')}>✕</button></>}
                           {b.status==='in_progress'&&<><button className="btn btn-sm" style={{background:'#DBEAFE',color:'#1E40AF'}} disabled={!!acting} onClick={()=>action(b.id,'complete')}>✓✓ Завершить</button></>}
                           {b.status==='completed'&&<button className="btn btn-ghost btn-sm" onClick={()=>{setRateModal(b);setRating(5);setComment('');}}>⭐ {b.client_rated_at?'Оценено':'Оценить'}</button>}
+                          {(b.status==='completed'||b.status==='cancelled')&&<button className="btn btn-danger btn-sm" disabled={!!acting} onClick={()=>del(b.id)}>🗑️</button>}
                         </div>
                       </td>
                     </tr>

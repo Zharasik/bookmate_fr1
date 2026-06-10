@@ -474,6 +474,24 @@ router.patch("/bookings/:id/complete", async (req, res) => {
   }
 });
 
+router.delete("/bookings/:id", async (req, res) => {
+  try {
+    const check = await pool.query(
+      `SELECT b.id FROM bookings b JOIN venues v ON v.id=b.venue_id
+       WHERE b.id=$1 AND v.owner_id=$2`,
+      [req.params.id, req.userId],
+    );
+    if (check.rows.length === 0)
+      return res.status(404).json({ error: "Бронь не найдена" });
+
+    await pool.query("DELETE FROM bookings WHERE id=$1", [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
 
 router.get("/stats", async (req, res) => {
   try {
