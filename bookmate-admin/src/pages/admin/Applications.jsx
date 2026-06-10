@@ -14,6 +14,7 @@ export default function Applications() {
   const [rejectModal, setRejectModal] = useState(null);
   const [rejectNote, setRejectNote] = useState('');
   const [filter, setFilter] = useState('pending');
+  const [clearing, setClearing] = useState(false);
 
   const load = () => api.getApplications().then(setApps).catch(() => {}).finally(() => setLoading(false));
   useEffect(() => { load(); }, []);
@@ -38,13 +39,29 @@ export default function Applications() {
     finally { setProcessing(null); }
   };
 
+  const clearHistory = async () => {
+    const historyCount = apps.filter(a => a.status === 'approved' || a.status === 'rejected').length;
+    if (!historyCount) return;
+    if (!window.confirm(`Удалить ${historyCount} обработанных заявок (одобренные и отклонённые) из истории? Действие необратимо.`)) return;
+    setClearing(true);
+    try {
+      await api.clearApplicationsHistory();
+      load();
+    } catch (e) { alert(e.message); }
+    finally { setClearing(false); }
+  };
+
   const filtered = filter === 'all' ? apps : apps.filter(a => a.status === filter);
   const pendingCount = apps.filter(a => a.status === 'pending').length;
+  const historyCount = apps.filter(a => a.status === 'approved' || a.status === 'rejected').length;
 
   return (
     <>
       <div className="page-header">
         <h1>Заявки на бизнес {pendingCount > 0 && <span className="tag" style={{ background: '#FEF3C7', color: '#92400E' }}>{pendingCount} новых</span>}</h1>
+        <button className="btn btn-danger btn-sm" disabled={!historyCount || clearing} onClick={clearHistory}>
+          🗑 Очистить историю
+        </button>
       </div>
 
       <div className="tabs">

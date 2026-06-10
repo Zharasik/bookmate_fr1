@@ -510,6 +510,15 @@ router.get('/applications', async (_req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Ошибка' }); }
 });
 
+router.delete('/applications/history', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `DELETE FROM business_applications WHERE status IN ('approved','rejected') RETURNING id`
+    );
+    res.json({ success: true, deleted: rows.length });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Ошибка' }); }
+});
+
 router.patch('/applications/:id', async (req, res) => {
   const client = await pool.connect();
   try {

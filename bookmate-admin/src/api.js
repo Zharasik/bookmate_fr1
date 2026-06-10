@@ -65,6 +65,7 @@ export const api = {
   getApplications: () => request('/api/admin/applications'),
   processApplication: (id, status, admin_note) =>
     request(`/api/admin/applications/${id}`, { method: 'PATCH', body: JSON.stringify({ status, admin_note }) }),
+  clearApplicationsHistory: () => request('/api/admin/applications/history', { method: 'DELETE' }),
 
   biz: {
     getStats: () => request('/api/business/stats'),
