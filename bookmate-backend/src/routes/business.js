@@ -8,6 +8,14 @@ const businessAuth = require("../middleware/businessAuth");
 const router = Router();
 router.use(businessAuth);
 
+function pad(n) {
+  return String(n).padStart(2, "0");
+}
+
+function toDateStr(d) {
+  return d instanceof Date ? d.toISOString().slice(0, 10) : String(d).slice(0, 10);
+}
+
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, "uploads/"),
   filename: (_req, file, cb) => cb(null, `${uuidv4()}${path.extname(file.originalname)}`),
@@ -413,7 +421,7 @@ router.patch("/bookings/:id/start", async (req, res) => {
 router.patch("/bookings/:id/complete", async (req, res) => {
   try {
     const check = await pool.query(
-      `SELECT b.id, b.user_id, b.date, b.time, v.name AS venue_name
+      `SELECT b.id, b.user_id, b.date, b.time, b.end_date, b.end_time, v.name AS venue_name
        FROM bookings b JOIN venues v ON v.id=b.venue_id
        WHERE b.id=$1 AND v.owner_id=$2 AND b.status IN ('confirmed','in_progress')`,
       [req.params.id, req.userId],
@@ -423,10 +431,29 @@ router.patch("/bookings/:id/complete", async (req, res) => {
         .status(404)
         .json({ error: "Бронь не найдена или не подтверждена / не начата" });
 
-    const { rows } = await pool.query(
-      `UPDATE bookings SET status='completed' WHERE id=$1 RETURNING *`,
-      [req.params.id],
-    );
+    const check0 = check.rows[0];
+    const dateStr = toDateStr(check0.date);
+    const endDateStr = check0.end_date ? toDateStr(check0.end_date) : dateStr;
+    const start = new Date(`${dateStr}T${check0.time}`);
+    const end = new Date(`${endDateStr}T${check0.end_time || check0.time}`);
+    const now = new Date();
+
+    // If the visit is being finished early (before its scheduled end time),
+    // shrink end_time/end_date to "now" so the rest of the slot frees up
+    // immediately for new bookings instead of staying blocked until the
+    // originally booked end time.
+    let updateSql = `UPDATE bookings SET status='completed'`;
+    const params = [req.params.id];
+    if (now > start && now < end) {
+      params.push(
+        `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
+        `${pad(now.getHours())}:${pad(now.getMinutes())}`,
+      );
+      updateSql += `, end_date=$2, end_time=$3`;
+    }
+    updateSql += ` WHERE id=$1 RETURNING *`;
+
+    const { rows } = await pool.query(updateSql, params);
 
     const b = check.rows[0];
     pool
