@@ -93,12 +93,14 @@ function formatDuration(min: number, lang: string): string {
   return m === 0 ? `${h} ч` : `${h} ч ${m} мин`;
 }
 
-function isPastTime(t: string, isToday: boolean): boolean {
-  if (!isToday) return false;
+function isPastTime(t: string, isToday: boolean, isNextDay = false): boolean {
+  if (!isToday || isNextDay) return false;
   // Bookings are stored as `date` + literal clock `time`, so e.g. "00:00" on the
   // selected date means "00:00 today" — compare against the current clock time
   // directly (no overnight adjustment), so already-passed early hours like
   // 00:00/01:00 are correctly disabled once the day has moved past them.
+  // Post-midnight slots of an overnight venue (the "+1 день" ones) belong to
+  // tomorrow, not today, so they're never "past" while viewing today.
   const now = new Date();
   return timeToMin(t) <= now.getHours() * 60 + now.getMinutes();
 }
@@ -421,7 +423,7 @@ export default function BookScreen() {
               }]}
               onPress={() => {
                 setSelectedDateIdx(i);
-                if (i === 0) setSelectedTimes((prev) => prev.filter((tm) => !isPastTime(tm, true)));
+                if (i === 0) setSelectedTimes((prev) => prev.filter((tm) => !isPastTime(tm, true, isOvernight && timeToMin(tm) < openMin)));
               }}
             >
               <Text style={[styles.dateDay, { color: selectedDateIdx === i ? '#fff' : c.textSecondary }]}>{d.day}</Text>
@@ -444,7 +446,7 @@ export default function BookScreen() {
                 const slotDur = slot.duration || 60;
                 const slotRanges = slot.booked_ranges ?? [];
                 const allTaken = generateTimeGrid(openTime, closeTime, slotDur).every((tm) => {
-                  if (isPastTime(tm, isToday)) return true;
+                  if (isPastTime(tm, isToday, isOvernight && timeToMin(tm) < openMin)) return true;
                   const startAdj = normalizeOvernight(timeToMin(tm), openMin, isOvernight);
                   if ((startAdj + slotDur) > adjustedCloseMin) return true;
                   return hasOverlap(startAdj, startAdj + slotDur, slotRanges, openMin, isOvernight);
@@ -554,7 +556,7 @@ export default function BookScreen() {
             ) : (
               <View style={styles.timeGrid}>
                 {timeGrid.map((tm) => {
-                  const past = isPastTime(tm, isToday);
+                  const past = isPastTime(tm, isToday, isOvernight && timeToMin(tm) < openMin);
                   const taken = isTimeTaken(tm);
                   const overflow = isTimeUnavailableDueToUnits(tm);
                   const disabled = past || taken || overflow;
