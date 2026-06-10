@@ -6,6 +6,7 @@ const { Resend } = require('resend');
 const pool = require('../db/pool');
 const auth = require('../middleware/auth');
 
+
 const router = Router();
 const SALT_ROUNDS = 12;
 
@@ -38,20 +39,26 @@ function createTransport() {
 }
 
 async function sendVerificationEmail(email, name, code) {
-  if (isResendConfigured()) {
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    const { error } = await resend.emails.send({
-      from: process.env.RESEND_FROM || 'onboarding@resend.dev',
-      to: email,
-      subject: 'Подтвердите ваш email — BookMate',
-      html: `<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px;background:#f9fafb;border-radius:16px">
+  const html = `<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px;background:#f9fafb;border-radius:16px">
       <h2 style="color:#2563EB">BookMate</h2>
       <p>Привет, <strong>${name}</strong>! Ваш код подтверждения:</p>
       <div style="background:#2563EB;color:#fff;font-size:36px;font-weight:800;letter-spacing:12px;text-align:center;padding:20px;border-radius:12px;margin:24px 0">${code}</div>
       <p style="color:#9CA3AF;font-size:13px">Код действителен 15 минут.</p>
-    </div>`,
+    </div>`;
+
+  if (isResendConfigured()) {
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const { data, error } = await resend.emails.send({
+      from: process.env.RESEND_FROM || 'onboarding@resend.dev',
+      to: email,
+      subject: 'Подтвердите ваш email — BookMate',
+      html,
     });
-    if (error) throw new Error(error.message || 'Resend send failed');
+    if (error) {
+      console.error('[Resend] sendVerificationEmail error:', JSON.stringify(error));
+      throw new Error(error.message || 'Resend send failed');
+    }
+    console.log('[Resend] sendVerificationEmail OK, id:', data?.id, '→', email);
     return true;
   }
 
@@ -64,12 +71,7 @@ async function sendVerificationEmail(email, name, code) {
     from: `"BookMate" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
     to: email,
     subject: 'Подтвердите ваш email — BookMate',
-    html: `<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px;background:#f9fafb;border-radius:16px">
-      <h2 style="color:#2563EB">BookMate</h2>
-      <p>Привет, <strong>${name}</strong>! Ваш код подтверждения:</p>
-      <div style="background:#2563EB;color:#fff;font-size:36px;font-weight:800;letter-spacing:12px;text-align:center;padding:20px;border-radius:12px;margin:24px 0">${code}</div>
-      <p style="color:#9CA3AF;font-size:13px">Код действителен 15 минут.</p>
-    </div>`,
+    html,
   });
   return Boolean(info?.messageId);
 }
