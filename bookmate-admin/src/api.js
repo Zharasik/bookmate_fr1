@@ -98,6 +98,7 @@ export const api = {
     deleteSlot: (slotId) => request(`/api/business/slots/${slotId}`, { method: 'DELETE' }),
     getServices: (venueId) => request(`/api/business/venues/${venueId}/services`),
     createService: (venueId, data) => request(`/api/business/venues/${venueId}/services`, { method: 'POST', body: JSON.stringify(data) }),
+    updateService: (id, data) => request(`/api/business/services/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     getBookings: (params = {}) => {
       const qs = new URLSearchParams(params).toString();
       return request(`/api/business/bookings${qs ? '?' + qs : ''}`);

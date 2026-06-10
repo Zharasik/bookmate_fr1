@@ -48,6 +48,7 @@ export default function BizServices() {
     setSaving(true);setError('');
     try{
       if(modal==='create') await api.biz.createService(form.venue_id,form);
+      else await api.biz.updateService(modal.id,form);
       setModal(null); reloadServices();
     }catch(e){setError(e.message);}finally{setSaving(false);}
   };
@@ -69,7 +70,7 @@ export default function BizServices() {
         <div className="table-wrap">
           {loading?<div className="loading">Загрузка...</div>:(
             <table>
-              <thead><tr><th>Название</th><th>Заведение</th><th>Цена</th><th>Длительность</th><th>Статус</th></tr></thead>
+              <thead><tr><th>Название</th><th>Заведение</th><th>Цена</th><th>Длительность</th><th>Статус</th><th></th></tr></thead>
               <tbody>
                 {filtered.map(s=>(
                   <tr key={s.id}>
@@ -78,22 +79,31 @@ export default function BizServices() {
                     <td>{s.price>0?`${s.price.toLocaleString()} ₸`:'Бесплатно'}</td>
                     <td><span className="tag" style={{background:'#EDE9FE',color:'#5B21B6'}}>{fmtDur(s.duration||60)}</span></td>
                     <td><span className={`badge ${s.is_active!==false?'badge-green':'badge-gray'}`}>{s.is_active!==false?'Активна':'Выкл'}</span></td>
+                    <td><button className="btn btn-ghost btn-sm" onClick={()=>openEdit(s)}>✏️</button></td>
                   </tr>
                 ))}
-                {!filtered.length&&<tr><td colSpan={5} style={{textAlign:'center',color:'#9ca3af',padding:32}}>Нет услуг</td></tr>}
+                {!filtered.length&&<tr><td colSpan={6} style={{textAlign:'center',color:'#9ca3af',padding:32}}>Нет услуг</td></tr>}
               </tbody>
             </table>
           )}
         </div>
       </div>
-      {modal==='create'&&(
-        <Modal title="Новая услуга" onClose={()=>setModal(null)} onSave={handleSave} saving={saving}>
+      {modal&&(
+        <Modal title={modal==='create'?'Новая услуга':'Редактировать услугу'} onClose={()=>setModal(null)} onSave={handleSave} saving={saving}>
           {error&&<div className="error-msg">{error}</div>}
-          <div className="form-group"><label className="form-label">Заведение *</label><select className="form-select" value={form.venue_id} onChange={e=>set('venue_id',e.target.value)}><option value="">— Выберите —</option>{venues.map(v=><option key={v.id} value={v.id}>{v.name}</option>)}</select></div>
+          <div className="form-group"><label className="form-label">Заведение *</label><select className="form-select" value={form.venue_id} onChange={e=>set('venue_id',e.target.value)} disabled={modal!=='create'}><option value="">— Выберите —</option>{venues.map(v=><option key={v.id} value={v.id}>{v.name}</option>)}</select></div>
           <div className="form-group"><label className="form-label">Название *</label><input className="form-input" value={form.name} onChange={e=>set('name',e.target.value)}/></div>
           <div className="form-group"><label className="form-label">Описание</label><textarea className="form-textarea" value={form.description||''} onChange={e=>set('description',e.target.value)}/></div>
           <div className="form-group"><label className="form-label">Длительность</label><div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:6}}>{DURATIONS.map(d=><button key={d} type="button" className="btn btn-sm" style={{background:form.duration===d?'#2563EB':'#F3F4F6',color:form.duration===d?'#fff':'#374151'}} onClick={()=>set('duration',d)}>{fmtDur(d)}</button>)}</div></div>
           <div className="form-group"><label className="form-label">Цена (₸)</label><input className="form-input" type="number" min="0" value={form.price} onChange={e=>set('price',+e.target.value)}/></div>
+          {modal!=='create'&&(
+            <div className="form-group">
+              <label className="form-label" style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer'}}>
+                <input type="checkbox" checked={form.is_active!==false} onChange={e=>set('is_active',e.target.checked)}/>
+                Услуга активна
+              </label>
+            </div>
+          )}
         </Modal>
       )}
     </>

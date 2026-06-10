@@ -628,6 +628,30 @@ router.post("/venues/:venueId/services", async (req, res) => {
   }
 });
 
+router.put("/services/:id", async (req, res) => {
+  try {
+    const check = await pool.query(
+      `SELECT s.id FROM services s JOIN venues v ON v.id=s.venue_id
+       WHERE s.id=$1 AND v.owner_id=$2`,
+      [req.params.id, req.userId],
+    );
+    if (check.rows.length === 0)
+      return res.status(404).json({ error: "Услуга не найдена" });
+
+    const { name, description, price, duration, is_active } = req.body;
+    const { rows } = await pool.query(
+      `UPDATE services SET name=COALESCE($1,name), description=COALESCE($2,description),
+       price=COALESCE($3,price), duration=COALESCE($4,duration), is_active=COALESCE($5,is_active)
+       WHERE id=$6 RETURNING *`,
+      [name, description, price, duration, is_active, req.params.id],
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
 
 router.post("/reviews/:reviewId/appeal", async (req, res) => {
   try {
