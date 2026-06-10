@@ -81,7 +81,23 @@ router.put('/venues/:id', async (req, res) => {
 
 router.delete('/venues/:id', async (req, res) => {
   try {
+    const venueRes = await pool.query('SELECT owner_id FROM venues WHERE id=$1', [req.params.id]);
+    const ownerId = venueRes.rows[0]?.owner_id;
+
     await pool.query('DELETE FROM venues WHERE id=$1', [req.params.id]);
+
+    if (ownerId) {
+      const remaining = await pool.query('SELECT count(*) FROM venues WHERE owner_id=$1', [ownerId]);
+      if (+remaining.rows[0].count === 0) {
+        await pool.query("UPDATE users SET role='user' WHERE id=$1 AND role='business_owner'", [ownerId]);
+        await pool.query(
+          `UPDATE business_applications SET status='rejected', admin_note='Бизнес удалён администратором'
+           WHERE user_id=$1 AND status='approved'`,
+          [ownerId]
+        );
+      }
+    }
+
     res.json({ success: true });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Ошибка' }); }
 });
@@ -473,6 +489,15 @@ router.patch('/users/:id/role', async (req, res) => {
       [role, req.params.id]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Не найдено' });
+
+    if (role !== 'business_owner') {
+      await pool.query(
+        `UPDATE business_applications SET status='rejected', admin_note='Роль пользователя изменена администратором'
+         WHERE user_id=$1 AND status='approved'`,
+        [req.params.id]
+      );
+    }
+
     res.json(rows[0]);
   } catch (err) { console.error(err); res.status(500).json({ error: 'Ошибка' }); }
 });
