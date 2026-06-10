@@ -7,7 +7,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft, Star, MapPin, Heart, Share2, Clock, Camera, Tag, Users, Wrench } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme, useT } from '../../hooks/useHelpers';
-import { useStore } from '../../hooks/useStore';
+import { useStore, MapFocus } from '../../hooks/useStore';
 import { api } from '../../services/api';
 
 export default function VenueDetailScreen() {
@@ -44,6 +44,15 @@ export default function VenueDetailScreen() {
 
   const toggleFav = async () => {
     try { const res = await api.toggleFavorite(id!); setFav(res.favorited); } catch {}
+  };
+
+  const showOnMap = () => {
+    const latitude = Number(venue?.latitude);
+    const longitude = Number(venue?.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+    const focus: MapFocus = { latitude, longitude, venueId: venue.id };
+    useStore.getState().setMapFocus(focus);
+    router.replace('/(tabs)' as any);
   };
 
   const pickPhoto = async () => {
@@ -96,10 +105,17 @@ export default function VenueDetailScreen() {
             </View>
             <Text style={{ color: c.textSecondary, marginLeft: 8 }}>({venue.review_count} {t('reviewsCount')})</Text>
           </View>
-          <View style={styles.locRow}>
+          <Pressable
+            style={styles.locRow}
+            onPress={showOnMap}
+            disabled={!Number.isFinite(Number(venue.latitude)) || !Number.isFinite(Number(venue.longitude))}
+          >
             <MapPin size={18} color={c.textSecondary} />
             <Text style={{ color: c.textSecondary, marginLeft: 8 }}>{venue.location}</Text>
-          </View>
+            {Number.isFinite(Number(venue.latitude)) && Number.isFinite(Number(venue.longitude)) && (
+              <Text style={{ color: c.primary, marginLeft: 8, fontSize: 13, fontWeight: '600' }}>· {t('showOnMap')}</Text>
+            )}
+          </Pressable>
           <View style={styles.locRow}>
             <Clock size={18} color={c.success} />
             <Text style={{ color: c.success, fontWeight: '500', marginLeft: 8 }}>{t('openNow')}</Text>

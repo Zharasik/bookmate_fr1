@@ -15,16 +15,25 @@ export interface User {
   client_rating?: number;
 }
 
+export interface MapFocus {
+  latitude: number;
+  longitude: number;
+  venueId: string;
+}
+
 interface AppState {
+  darkMode: any;
   token: string | null;
   user: User | null;
   dark: boolean;
   lang: Lang;
+  mapFocus: MapFocus | null;
   setAuth: (token: string, user: User) => void;
   updateUser: (partial: Partial<User>) => void;
   logout: () => void;
   toggleTheme: () => void;
   setLang: (l: Lang) => void;
+  setMapFocus: (focus: MapFocus | null) => void;
   hydrate: () => Promise<void>;
 }
 
@@ -36,6 +45,7 @@ export const useStore = create<AppState>((set: SetFn, get: GetFn) => ({
   user: null,
   dark: false,
   lang: 'ru' as Lang,
+  mapFocus: null,
 
   setAuth: (token: string, user: User) => {
     set({ token, user });
@@ -64,6 +74,8 @@ export const useStore = create<AppState>((set: SetFn, get: GetFn) => ({
     set({ lang });
     AsyncStorage.setItem('lang', lang);
   },
+
+  setMapFocus: (focus: MapFocus | null) => set({ mapFocus: focus }),
 
   hydrate: async () => {
     try {

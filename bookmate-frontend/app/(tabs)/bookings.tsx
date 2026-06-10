@@ -7,7 +7,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Calendar, Clock, MapPin, X, Star, Trash2, Flag, CheckCircle } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useTheme, useT } from "../../hooks/useHelpers";
-import { useStore } from "../../hooks/useStore";
 import { api } from "../../services/api";
 
 type FilterKey = "all" | "confirmed" | "in_progress" | "pending" | "completed" | "cancelled";
@@ -19,6 +18,14 @@ const STATUS_ORDER: Record<string, number> = {
 function formatDateOnly(dateValue?: string) {
   if (!dateValue) return "";
   return String(dateValue).split("T")[0];
+}
+
+function formatTimeRange(b: any) {
+  if (!b.end_time) return b.time;
+  const startDate = formatDateOnly(b.date);
+  const endDate = formatDateOnly(b.end_date);
+  if (endDate && endDate !== startDate) return `${b.time} – ${endDate} ${b.end_time}`;
+  return `${b.time} – ${b.end_time}`;
 }
 
 function sortAll(list: any[]) {
@@ -33,7 +40,6 @@ export default function BookingsScreen() {
   const c = useTheme();
   const t = useT();
   const router = useRouter();
-  const lang = useStore((s) => s.lang);
 
   const [allBookings, setAllBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -178,6 +184,11 @@ export default function BookingsScreen() {
           {b.slot_name && (
             <Text style={[styles.slot, { color: c.primary }]}>📍 {b.slot_name}</Text>
           )}
+          {b.service_names?.length > 0 && (
+            <Text style={[styles.slot, { color: c.textSecondary }]} numberOfLines={1}>
+              🔧 {b.service_names.join(', ')}
+            </Text>
+          )}
           <View style={styles.metaRow}>
             <MapPin size={13} color={c.textMuted} />
             <Text style={[styles.metaText, { color: c.textSecondary }]} numberOfLines={1}>
@@ -192,7 +203,7 @@ export default function BookingsScreen() {
             <View style={styles.dtItem}>
               <Clock size={13} color={c.primary} />
               <Text style={[styles.dtText, { color: c.text }]}>
-                {b.time}{b.end_time ? ` – ${b.end_time}` : ""}
+                {formatTimeRange(b)}
               </Text>
             </View>
             {b.total_price > 0 && (

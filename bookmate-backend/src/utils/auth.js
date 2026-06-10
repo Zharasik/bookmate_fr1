@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 
 const USER_ROLES = Object.freeze({
   USER: 'user',
-  BUSINESS: 'business',
+  BUSINESS: 'business_owner',
   ADMIN: 'admin',
 });
 

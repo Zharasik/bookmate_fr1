@@ -11,43 +11,16 @@ import { useTheme, useT } from '../../../hooks/useHelpers';
 import { useStore } from '../../../hooks/useStore';
 import { api } from '../../../services/api';
 
-const BAD_REASONS = [
-  'Плохое обслуживание',
-  'Грязно / неопрятно',
-  'Шумно',
-  'Долгое ожидание',
-  'Не соответствует описанию',
-  'Высокие цены за качество',
-  'Персонал грубил',
-  'Технические проблемы',
-  'Неудобное расположение',
-  'Другое',
-];
-
-const GOOD_REASONS = [
-  'Отличное обслуживание',
-  'Чисто и уютно',
-  'Приятная атмосфера',
-  'Вежливый персонал',
-  'Хорошее соотношение цена/качество',
-  'Удобное расположение',
-  'Быстрое обслуживание',
-  'Широкий выбор услуг',
-  'Рекомендую друзьям',
-  'Приду снова',
-];
-
-const APPEAL_REASONS = [
-  'Содержит оскорбления',
-  'Фейковый отзыв',
-  'Не имеет отношения к заведению',
-  'Нарушает правила',
-  'Другое',
-];
-
-function timeAgo(dateStr: string): string {
+function timeAgo(dateStr: string, lang: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
+  if (lang === 'kk') {
+    if (mins < 1) return 'жаңа ғана';
+    if (mins < 60) return `${mins} мин.`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs} сағ.`;
+    return `${Math.floor(hrs / 24)} күн`;
+  }
   if (mins < 1) return 'сейчас';
   if (mins < 60) return `${mins} мин.`;
   const hrs = Math.floor(mins / 60);
@@ -59,13 +32,7 @@ function ReasonChip({ label, selected, onPress, color }: any) {
   return (
     <Pressable
       onPress={onPress}
-      style={[
-        styles.reasonChip,
-        {
-          backgroundColor: selected ? `${color}20` : '#F9FAFB',
-          borderColor: selected ? color : '#E5E7EB',
-        },
-      ]}
+      style={[styles.reasonChip, { backgroundColor: selected ? `${color}20` : '#F9FAFB', borderColor: selected ? color : '#E5E7EB' }]}
     >
       {selected && <CheckCircle size={13} color={color} style={{ marginRight: 4 }} />}
       <Text style={{ color: selected ? color : '#6B7280', fontSize: 13, fontWeight: selected ? '700' : '400' }}>
@@ -80,14 +47,26 @@ export default function ReviewsScreen() {
   const router = useRouter();
   const c = useTheme();
   const t = useT();
+  const lang = useStore((s) => s.lang);
   const user = useStore((s) => s.user);
+
+  const BAD_REASONS = [
+    t('badReason1'), t('badReason2'), t('badReason3'), t('badReason4'), t('badReason5'),
+    t('badReason6'), t('badReason7'), t('badReason8'), t('badReason9'), t('badReason10'),
+  ];
+  const GOOD_REASONS = [
+    t('goodReason1'), t('goodReason2'), t('goodReason3'), t('goodReason4'), t('goodReason5'),
+    t('goodReason6'), t('goodReason7'), t('goodReason8'), t('goodReason9'), t('goodReason10'),
+  ];
+  const APPEAL_REASONS = [
+    t('appealReason1'), t('appealReason2'), t('appealReason3'), t('appealReason4'), t('appealReason5'),
+  ];
 
   const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [myReviewId, setMyReviewId] = useState<string | null>(null);
 
-  // Write review modal
   const [showModal, setShowModal] = useState(false);
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
@@ -95,7 +74,6 @@ export default function ReviewsScreen() {
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Appeal modal
   const [appealTarget, setAppealTarget] = useState<any | null>(null);
   const [appealReason, setAppealReason] = useState('');
   const [appealSubmitting, setAppealSubmitting] = useState(false);
@@ -127,9 +105,7 @@ export default function ReviewsScreen() {
 
   const toggleReason = (r: string) => {
     setSelectedReasons((prev) =>
-      prev.includes(r)
-        ? prev.filter((x) => x !== r)
-        : prev.length < 3 ? [...prev, r] : prev
+      prev.includes(r) ? prev.filter((x) => x !== r) : prev.length < 3 ? [...prev, r] : prev
     );
   };
 
@@ -147,13 +123,7 @@ export default function ReviewsScreen() {
         const uploaded = await api.uploadReviewPhoto(photoUri);
         photo_url = uploaded.url;
       }
-      await api.postReview({
-        venue_id: id,
-        rating,
-        comment,
-        photo_url,
-        reasons: selectedReasons.length > 0 ? selectedReasons : undefined,
-      });
+      await api.postReview({ venue_id: id, rating, comment, photo_url, reasons: selectedReasons.length > 0 ? selectedReasons : undefined });
       setShowModal(false);
       load();
     } catch (e: any) {
@@ -164,10 +134,10 @@ export default function ReviewsScreen() {
   };
 
   const handleDeleteMyReview = () => {
-    Alert.alert('Удалить отзыв?', 'Это действие нельзя отменить.', [
-      { text: 'Отмена', style: 'cancel' },
+    Alert.alert(t('deleteReview'), t('deleteReviewMsg'), [
+      { text: t('cancel'), style: 'cancel' },
       {
-        text: 'Удалить', style: 'destructive', onPress: async () => {
+        text: t('delete'), style: 'destructive', onPress: async () => {
           if (!myReviewId) return;
           try { await api.deleteMyReview(myReviewId); load(); }
           catch (e: any) { Alert.alert(t('error'), e.message); }
@@ -181,7 +151,7 @@ export default function ReviewsScreen() {
     setAppealSubmitting(true);
     try {
       await api.appealReview(appealTarget.id, appealReason);
-      Alert.alert('Жалоба отправлена', 'Администратор рассмотрит её в ближайшее время.');
+      Alert.alert(t('appealSentTitle'), t('appealSentMsg'));
       setAppealTarget(null); setAppealReason('');
     } catch (e: any) {
       Alert.alert(t('error'), e.message);
@@ -224,7 +194,7 @@ export default function ReviewsScreen() {
                     <Text style={[styles.revName, { color: c.text }]}>{r.user_name}</Text>
                     {r.user_id === user?.id && (
                       <View style={{ backgroundColor: c.primaryLight, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-                        <Text style={{ color: c.primary, fontSize: 10, fontWeight: '700' }}>Вы</Text>
+                        <Text style={{ color: c.primary, fontSize: 10, fontWeight: '700' }}>{t('youBadge')}</Text>
                       </View>
                     )}
                   </View>
@@ -234,19 +204,13 @@ export default function ReviewsScreen() {
                     ))}
                   </View>
                 </View>
-                <Text style={[styles.ts, { color: c.textMuted }]}>{timeAgo(r.created_at)}</Text>
+                <Text style={[styles.ts, { color: c.textMuted }]}>{timeAgo(r.created_at, lang)}</Text>
               </View>
 
-              {/* Reasons badges */}
               {(r.reasons?.length > 0 || r.bad_reason) && (
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                   {(r.reasons?.length > 0 ? r.reasons : [r.bad_reason]).map((reason: string, i: number) => (
-                    <View
-                      key={i}
-                      style={[styles.reasonBadge, {
-                        backgroundColor: r.rating <= 3 ? '#FEE2E2' : '#D1FAE5',
-                      }]}
-                    >
+                    <View key={i} style={[styles.reasonBadge, { backgroundColor: r.rating <= 3 ? '#FEE2E2' : '#D1FAE5' }]}>
                       <Text style={{ color: r.rating <= 3 ? '#991B1B' : '#065F46', fontSize: 12, fontWeight: '600' }}>
                         {r.rating <= 3 ? '⚠️' : '✓'} {reason}
                       </Text>
@@ -255,19 +219,13 @@ export default function ReviewsScreen() {
                 </View>
               )}
 
-              {r.comment ? (
-                <Text style={[styles.comment, { color: c.textSecondary }]}>{r.comment}</Text>
-              ) : null}
+              {r.comment ? <Text style={[styles.comment, { color: c.textSecondary }]}>{r.comment}</Text> : null}
+              {r.photo_url ? <Image source={{ uri: r.photo_url }} style={styles.reviewPhoto} resizeMode="cover" /> : null}
 
-              {r.photo_url ? (
-                <Image source={{ uri: r.photo_url }} style={styles.reviewPhoto} resizeMode="cover" />
-              ) : null}
-
-              {/* Actions row */}
               <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
                 {r.user_id === user?.id ? (
                   <Pressable onPress={handleDeleteMyReview} style={[styles.smallBtn, { borderColor: '#EF4444' }]}>
-                    <Text style={{ color: '#EF4444', fontSize: 12, fontWeight: '600' }}>Удалить</Text>
+                    <Text style={{ color: '#EF4444', fontSize: 12, fontWeight: '600' }}>{t('delete')}</Text>
                   </Pressable>
                 ) : user ? (
                   <Pressable
@@ -275,7 +233,7 @@ export default function ReviewsScreen() {
                     style={[styles.smallBtn, { borderColor: '#F59E0B' }]}
                   >
                     <Flag size={12} color="#F59E0B" />
-                    <Text style={{ color: '#92400E', fontSize: 12, fontWeight: '600', marginLeft: 4 }}>Пожаловаться</Text>
+                    <Text style={{ color: '#92400E', fontSize: 12, fontWeight: '600', marginLeft: 4 }}>{t('reportReview')}</Text>
                   </Pressable>
                 ) : null}
               </View>
@@ -292,7 +250,7 @@ export default function ReviewsScreen() {
         {myReviewId ? (
           <View style={[styles.alreadyBox, { backgroundColor: '#D1FAE5', borderColor: '#10B981' }]}>
             <CheckCircle size={18} color="#10B981" />
-            <Text style={{ color: '#065F46', fontWeight: '600', marginLeft: 8 }}>Вы уже оставили отзыв</Text>
+            <Text style={{ color: '#065F46', fontWeight: '600', marginLeft: 8 }}>{t('alreadyReviewed')}</Text>
           </View>
         ) : user ? (
           <Pressable style={[styles.writeBtn, { borderColor: c.primary }]} onPress={openModal}>
@@ -300,12 +258,12 @@ export default function ReviewsScreen() {
           </Pressable>
         ) : (
           <Pressable style={[styles.writeBtn, { borderColor: c.border }]} onPress={() => router.push('/auth/login' as any)}>
-            <Text style={[styles.writeBtnText, { color: c.textSecondary }]}>Войдите, чтобы оставить отзыв</Text>
+            <Text style={[styles.writeBtnText, { color: c.textSecondary }]}>{t('loginToReview')}</Text>
           </Pressable>
         )}
       </View>
 
-      {/* ── Write review modal ── */}
+      {/* Write review modal */}
       <Modal visible={showModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: c.card }]}>
@@ -316,8 +274,6 @@ export default function ReviewsScreen() {
               </Pressable>
             </View>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-
-              {/* Stars */}
               <Text style={[styles.label, { color: c.text }]}>{t('yourRating')}</Text>
               <View style={styles.starsInput}>
                 {[1, 2, 3, 4, 5].map((s) => (
@@ -327,10 +283,9 @@ export default function ReviewsScreen() {
                 ))}
               </View>
 
-              {/* Reasons (show from ≤3 and ≥4) */}
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, marginBottom: 6 }}>
                 <Text style={[styles.label, { color: c.text, marginBottom: 0 }]}>
-                  {rating <= 3 ? 'Что не понравилось?' : 'Что понравилось?'}
+                  {rating <= 3 ? t('whatDisliked') : t('whatLiked')}
                 </Text>
                 <Text style={{ fontSize: 12, color: selectedReasons.length >= 3 ? '#EF4444' : c.textMuted }}>
                   {selectedReasons.length}/3
@@ -338,17 +293,10 @@ export default function ReviewsScreen() {
               </View>
               <View style={styles.reasonGrid}>
                 {reasonList.map((r) => (
-                  <ReasonChip
-                    key={r}
-                    label={r}
-                    selected={selectedReasons.includes(r)}
-                    onPress={() => toggleReason(r)}
-                    color={reasonColor}
-                  />
+                  <ReasonChip key={r} label={r} selected={selectedReasons.includes(r)} onPress={() => toggleReason(r)} color={reasonColor} />
                 ))}
               </View>
 
-              {/* Comment */}
               <Text style={[styles.label, { color: c.text, marginTop: 16 }]}>{t('yourComment')}</Text>
               <TextInput
                 style={[styles.commentInput, { backgroundColor: c.bg, color: c.text, borderColor: c.border }]}
@@ -360,24 +308,20 @@ export default function ReviewsScreen() {
                 onChangeText={setComment}
               />
 
-              {/* Photo */}
-              <Text style={[styles.label, { color: c.text, marginTop: 16 }]}>Фото (необязательно)</Text>
+              <Text style={[styles.label, { color: c.text, marginTop: 16 }]}>{t('photoOptional')}</Text>
               <Pressable
-                style={[styles.photoBtn, {
-                  borderColor: photoUri ? c.primary : c.border,
-                  backgroundColor: photoUri ? `${c.primary}10` : c.bg,
-                }]}
+                style={[styles.photoBtn, { borderColor: photoUri ? c.primary : c.border, backgroundColor: photoUri ? `${c.primary}10` : c.bg }]}
                 onPress={pickPhoto}
               >
                 {photoUri ? (
                   <View style={{ alignItems: 'center', gap: 6 }}>
                     <Image source={{ uri: photoUri }} style={styles.photoPreview} />
-                    <Text style={{ color: c.primary, fontSize: 13 }}>Изменить фото</Text>
+                    <Text style={{ color: c.primary, fontSize: 13 }}>{t('changePhoto')}</Text>
                   </View>
                 ) : (
                   <View style={{ alignItems: 'center', gap: 8 }}>
                     <Camera size={24} color={c.textMuted} />
-                    <Text style={{ color: c.textMuted, fontSize: 13 }}>Прикрепить фото</Text>
+                    <Text style={{ color: c.textMuted, fontSize: 13 }}>{t('attachPhoto')}</Text>
                   </View>
                 )}
               </Pressable>
@@ -394,33 +338,25 @@ export default function ReviewsScreen() {
         </View>
       </Modal>
 
-      {/* ── Appeal modal ── */}
+      {/* Appeal modal */}
       <Modal visible={!!appealTarget} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: c.card }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: c.text }]}>Пожаловаться на отзыв</Text>
+              <Text style={[styles.modalTitle, { color: c.text }]}>{t('reportReview')}</Text>
               <Pressable onPress={() => setAppealTarget(null)}>
                 <X size={24} color={c.text} />
               </Pressable>
             </View>
-            <Text style={[{ color: c.textSecondary, fontSize: 13, marginBottom: 16 }]}>
-              Выберите причину или опишите нарушение
-            </Text>
+            <Text style={{ color: c.textSecondary, fontSize: 13, marginBottom: 16 }}>{t('reportSelectReason')}</Text>
             <View style={styles.reasonGrid}>
               {APPEAL_REASONS.map((r) => (
-                <ReasonChip
-                  key={r}
-                  label={r}
-                  selected={appealReason === r}
-                  onPress={() => setAppealReason(r)}
-                  color="#F59E0B"
-                />
+                <ReasonChip key={r} label={r} selected={appealReason === r} onPress={() => setAppealReason(r)} color="#F59E0B" />
               ))}
             </View>
             <TextInput
               style={[styles.commentInput, { backgroundColor: c.bg, color: c.text, borderColor: c.border, marginTop: 12 }]}
-              placeholder="Дополнительный комментарий..."
+              placeholder={t('additionalComment')}
               placeholderTextColor={c.textMuted}
               multiline
               value={appealReason.startsWith('Другое') ? '' : undefined}
@@ -433,7 +369,7 @@ export default function ReviewsScreen() {
             >
               {appealSubmitting
                 ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.submitText}>Отправить жалобу</Text>}
+                : <Text style={styles.submitText}>{t('sendReport')}</Text>}
             </Pressable>
           </View>
         </View>
